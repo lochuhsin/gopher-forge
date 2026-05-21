@@ -89,11 +89,8 @@ func (q *RingQueue[T]) grow() {
 	q.mask = newCap - 1
 }
 
-func OrderedChannel[T any](in <-chan T, buff Queue[T]) <-chan T {
-	if buff == nil {
-		buff = NewRingQueue[T]()
-	}
-
+func OrderedChannel[T any](in <-chan T) <-chan T {
+	buff := NewRingQueue[T]()
 	out := make(chan T)
 
 	go func() {

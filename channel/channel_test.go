@@ -8,7 +8,7 @@ import (
 
 func TestOrderedChannelBasicFIFO(t *testing.T) {
 	in := make(chan int)
-	out := OrderedChannel(in, nil)
+	out := OrderedChannel(in)
 
 	go func() {
 		for i := 1; i <= 5; i++ {
@@ -31,7 +31,7 @@ func TestOrderedChannelBasicFIFO(t *testing.T) {
 func TestOrderedChannelEmptyInputClosesOut(t *testing.T) {
 	in := make(chan int)
 	close(in)
-	out := OrderedChannel(in, nil)
+	out := OrderedChannel(in)
 
 	done := make(chan struct{})
 	go func() {
@@ -48,16 +48,12 @@ func TestOrderedChannelEmptyInputClosesOut(t *testing.T) {
 	}
 }
 
-// TestOrderedChannelNoPhantomZeros — 抓 phantom-zero bug。
-//
-// 觸發條件：producer 送 1、停一陣子、送 2、close。期間 consumer 一直在 <-out 等。
-// 如果 OrderedChannel 把 `case out <- first:` 無條件放進 select，當 buff 空時
-// `first` 是零值，send case 仍然 ready → 會把零值送給 consumer。
-//
-// 預期：consumer 應該 exactly 收到 [1, 2]。
+// TestOrderedChannelNoPhantomZeros — catches the phantom-zero bug: if `case out <- first:`
+// is unconditionally in the select, an empty buffer's zero `first` keeps the send ready
+// and leaks zeros to the consumer. Expect exactly [1, 2].
 func TestOrderedChannelNoPhantomZeros(t *testing.T) {
 	in := make(chan int)
-	out := OrderedChannel(in, nil)
+	out := OrderedChannel(in)
 
 	done := make(chan struct{})
 	var got []int
@@ -69,7 +65,7 @@ func TestOrderedChannelNoPhantomZeros(t *testing.T) {
 	}()
 
 	in <- 1
-	time.Sleep(50 * time.Millisecond) // 留給 buggy code 噴零值的窗口
+	time.Sleep(50 * time.Millisecond) // window for buggy code to leak zeros
 	in <- 2
 	close(in)
 
@@ -90,12 +86,12 @@ func TestOrderedChannelNoPhantomZeros(t *testing.T) {
 	}
 }
 
-// TestOrderedChannelManyItemsInOrder — 大量資料 + 邊送邊收，
-// 同時驗證「順序保留」跟「沒有多出來的元素」。
+// TestOrderedChannelManyItemsInOrder — bulk interleaved send/receive;
+// verifies order preservation and no extra elements.
 func TestOrderedChannelManyItemsInOrder(t *testing.T) {
 	const N = 10000
 	in := make(chan int)
-	out := OrderedChannel(in, nil)
+	out := OrderedChannel(in)
 
 	go func() {
 		for i := range N {
@@ -120,13 +116,12 @@ func TestOrderedChannelManyItemsInOrder(t *testing.T) {
 	}
 }
 
-// TestOrderedChannelProducerDoesNotBlock — unlimited buffer 的核心契約：
-// consumer 完全不讀的情況下，producer 仍然能把 N 筆全部送進去 + close in，
-// 不會卡死。
+// TestOrderedChannelProducerDoesNotBlock — unlimited buffer's core contract:
+// producer sends all N items and closes `in` without blocking, even if consumer never reads.
 func TestOrderedChannelProducerDoesNotBlock(t *testing.T) {
 	const N = 100000
 	in := make(chan int)
-	out := OrderedChannel(in, nil)
+	out := OrderedChannel(in)
 
 	producerDone := make(chan struct{})
 	go func() {
