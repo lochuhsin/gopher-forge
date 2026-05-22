@@ -8,13 +8,13 @@ import "sync/atomic"
 // buggyDupPopStack: Pop reads head with Load+Store instead of CAS, so
 // two concurrent Pops can return the same value.
 type buggyDupPopStack struct {
-	head atomic.Pointer[node]
+	head atomic.Pointer[node[int]]
 }
 
 func newBuggyDupPopStack() buggyDupPopStack { return buggyDupPopStack{} }
 
 func (s *buggyDupPopStack) Push(v int) {
-	n := &node{v: v}
+	n := &node[int]{v: v}
 	for {
 		prev := s.head.Load()
 		n.next = prev
@@ -36,13 +36,13 @@ func (s *buggyDupPopStack) Pop() (int, bool) {
 // buggyLostPushStack: Push uses Load+Store instead of a CAS loop, so a
 // concurrent Push from another goroutine can be overwritten.
 type buggyLostPushStack struct {
-	head atomic.Pointer[node]
+	head atomic.Pointer[node[int]]
 }
 
 func newBuggyLostPushStack() buggyLostPushStack { return buggyLostPushStack{} }
 
 func (s *buggyLostPushStack) Push(v int) {
-	n := &node{v: v}
+	n := &node[int]{v: v}
 	n.next = s.head.Load()
 	s.head.Store(n) // BUG: missing CAS loop
 }
@@ -59,7 +59,7 @@ func (s *buggyLostPushStack) Pop() (int, bool) {
 	}
 }
 
-var buggyStackFactories = map[string]func() Stack{
-	"BuggyDupPop":   func() Stack { s := newBuggyDupPopStack(); return &s },
-	"BuggyLostPush": func() Stack { s := newBuggyLostPushStack(); return &s },
+var buggyStackFactories = map[string]func() Stack[int]{
+	"BuggyDupPop":   func() Stack[int] { s := newBuggyDupPopStack(); return &s },
+	"BuggyLostPush": func() Stack[int] { s := newBuggyLostPushStack(); return &s },
 }

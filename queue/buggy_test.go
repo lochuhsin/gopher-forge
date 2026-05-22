@@ -85,7 +85,7 @@ func (q *buggyDequeueQueue) Dequeue() (int, bool) {
 	return next.v, true
 }
 
-var buggyQueueFactories = map[string]func() Queue{
-	"BuggyEnqueue": func() Queue { return newBuggyEnqueueQueue() },
-	"BuggyDequeue": func() Queue { return newBuggyDequeueQueue() },
+var buggyQueueFactories = map[string]func() Queue[int]{
+	"BuggyEnqueue": func() Queue[int] { return newBuggyEnqueueQueue() },
+	"BuggyDequeue": func() Queue[int] { return newBuggyDequeueQueue() },
 }

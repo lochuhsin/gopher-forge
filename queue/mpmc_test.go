@@ -9,7 +9,7 @@ import (
 
 // Shared helpers used by both MPMC and MPSC test files.
 
-func retryEnqueue(q Queue, v int) {
+func retryEnqueue(q Queue[int], v int) {
 	for !q.Enqueue(v) {
 		runtime.Gosched()
 	}
@@ -42,7 +42,7 @@ func chaosQGOMAXPROCS() []int { return []int{1, 2, 4, 8} }
 //	MPMC: runQConservation(q, N, N, ops)
 //	MPSC: runQConservation(q, N, 1, ops)
 //	SPSC: runQConservation(q, 1, 1, ops)
-func runQConservation(q Queue, numProducers, numConsumers, opsPerProducer int) []string {
+func runQConservation(q Queue[int], numProducers, numConsumers, opsPerProducer int) []string {
 	var enqWg, deqWg sync.WaitGroup
 	enqDone := make(chan struct{})
 
@@ -59,9 +59,7 @@ func runQConservation(q Queue, numProducers, numConsumers, opsPerProducer int) [
 
 	dequeuedCh := make(chan []int, numConsumers)
 	for range numConsumers {
-		deqWg.Add(1)
-		go func() {
-			defer deqWg.Done()
+		deqWg.Go(func() {
 			local := []int{}
 			for {
 				if v, ok := q.Dequeue(); ok {
@@ -76,7 +74,7 @@ func runQConservation(q Queue, numProducers, numConsumers, opsPerProducer int) [
 					runtime.Gosched()
 				}
 			}
-		}()
+		})
 	}
 
 	enqWg.Wait()

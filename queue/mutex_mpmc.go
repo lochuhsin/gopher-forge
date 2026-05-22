@@ -2,18 +2,18 @@ package queue
 
 import "sync"
 
-type MutexMPMC struct {
+type MutexMPMC[T any] struct {
 	mu   sync.Mutex
-	arr  [BoundedQueueSize]int
+	arr  [BoundedQueueSize]T
 	tail uint64
 	head uint64
 }
 
-func NewMutexMPMC() *MutexMPMC {
-	return &MutexMPMC{}
+func NewMutexMPMC[T any]() *MutexMPMC[T] {
+	return &MutexMPMC[T]{}
 }
 
-func (b *MutexMPMC) Enqueue(v int) bool {
+func (b *MutexMPMC[T]) Enqueue(v T) bool {
 	b.mu.Lock()
 
 	if (b.tail - b.head) == BoundedQueueSize {
@@ -29,16 +29,18 @@ func (b *MutexMPMC) Enqueue(v int) bool {
 	return true
 }
 
-func (b *MutexMPMC) Dequeue() (int, bool) {
+func (b *MutexMPMC[T]) Dequeue() (T, bool) {
 	b.mu.Lock()
 
+	var zero T
 	if (b.tail - b.head) == 0 {
 		b.mu.Unlock()
-		return 0, false
+		return zero, false
 	}
 
 	pos := b.head & queueMask
 	val := b.arr[pos]
+	b.arr[pos] = zero
 
 	b.head++
 	b.mu.Unlock()

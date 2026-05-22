@@ -1,11 +1,11 @@
 package stack
 
-type Stack interface {
-	Pop() (int, bool)
-	Push(v int)
+type Stack[T any] interface {
+	Pop() (T, bool)
+	Push(v T)
 }
 
-type node struct {
-	v    int
-	next *node
+type node[T any] struct {
+	v    T
+	next *node[T]
 }

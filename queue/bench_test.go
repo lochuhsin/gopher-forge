@@ -10,15 +10,15 @@ import (
 	"time"
 )
 
-var mpmcQueueFactories = map[string]func() Queue{
-	"MutexMPMC":          func() Queue { return NewMutexMPMC() },
-	"LockFreeMPMC":       func() Queue { return NewLockFreeMPMC() },
-	"LockFreePaddedMPMC": func() Queue { return NewLockFreePaddedMPMC() },
+var mpmcQueueFactories = map[string]func() Queue[int]{
+	"MutexMPMC":          func() Queue[int] { return NewMutexMPMC[int]() },
+	"LockFreeMPMC":       func() Queue[int] { return NewLockFreeMPMC[int]() },
+	"LockFreePaddedMPMC": func() Queue[int] { return NewLockFreePaddedMPMC[int]() },
 }
 
-var mpscQueueFactories = map[string]func() Queue{
-	"MutexMPSC":    func() Queue { return NewMutexMPSC() },
-	"LockFreeMPSC": func() Queue { return NewLockFreeMPSC() },
+var mpscQueueFactories = map[string]func() Queue[int]{
+	"MutexMPSC":    func() Queue[int] { return NewMutexMPSC[int]() },
+	"LockFreeMPSC": func() Queue[int] { return NewLockFreeMPSC[int]() },
 }
 
 // Note: every op samples time.Now() to record latency, adding ~30ns of
@@ -94,7 +94,7 @@ func BenchmarkQueue(b *testing.B) {
 	}
 }
 
-func benchQSingleThread(b *testing.B, factory func() Queue, enqueueRatio int) {
+func benchQSingleThread(b *testing.B, factory func() Queue[int], enqueueRatio int) {
 	q := factory()
 	if enqueueRatio < 50 {
 		// dequeue-heavy: pre-fill so Dequeue is not just hitting empty.
@@ -131,7 +131,7 @@ func benchQSingleThread(b *testing.B, factory func() Queue, enqueueRatio int) {
 	reportQMetrics(b, latencies, &memBefore, &memAfter)
 }
 
-func benchQConcurrent(b *testing.B, factory func() Queue, enqueueRatio, workers int) {
+func benchQConcurrent(b *testing.B, factory func() Queue[int], enqueueRatio, workers int) {
 	q := factory()
 	if enqueueRatio < 50 {
 		for i := range qPrefillSize {
@@ -232,17 +232,17 @@ func BenchmarkMPMCQueue(b *testing.B) {
 	procs := runtime.GOMAXPROCS(0)
 	targets := []struct {
 		name string
-		make func() Queue
+		make func() Queue[int]
 	}{
-		{"Mutex", func() Queue { return NewMutexMPMC() }},
-		{"Unpadded", func() Queue {
-			q := &LockFreeMPMC{}
+		{"Mutex", func() Queue[int] { return NewMutexMPMC[int]() }},
+		{"Unpadded", func() Queue[int] {
+			q := &LockFreeMPMC[int]{}
 			for i := range BoundedQueueSize {
 				q.arr[i].seq.Store(uint64(i))
 			}
 			return q
 		}},
-		{"Padded", func() Queue { return NewLockFreePaddedMPMC() }},
+		{"Padded", func() Queue[int] { return NewLockFreePaddedMPMC[int]() }},
 	}
 	multipliers := []int{1, 2, 8}
 
@@ -259,7 +259,7 @@ func BenchmarkMPMCQueue(b *testing.B) {
 	}
 }
 
-func benchMPMCQ(b *testing.B, makeQ func() Queue, producers, consumers int) {
+func benchMPMCQ(b *testing.B, makeQ func() Queue[int], producers, consumers int) {
 	q := makeQ()
 	// Pre-fill to half capacity so neither side starves immediately.
 	for i := range BoundedQueueSize / 2 {
@@ -342,12 +342,12 @@ func BenchmarkMPSCQueue(b *testing.B) {
 	procs := runtime.GOMAXPROCS(0)
 	targets := []struct {
 		name string
-		make func() Queue
+		make func() Queue[int]
 	}{
-		{"Mutex", func() Queue { return NewMutexMPMC() }},
-		{"MPMC-Unpadded", func() Queue { return NewLockFreeMPMC() }},
-		{"MPMC-Padded", func() Queue { return NewLockFreePaddedMPMC() }},
-		{"MPSC", func() Queue { return NewLockFreeMPSC() }},
+		{"Mutex", func() Queue[int] { return NewMutexMPMC[int]() }},
+		{"MPMC-Unpadded", func() Queue[int] { return NewLockFreeMPMC[int]() }},
+		{"MPMC-Padded", func() Queue[int] { return NewLockFreePaddedMPMC[int]() }},
+		{"MPSC", func() Queue[int] { return NewLockFreeMPSC[int]() }},
 	}
 	multipliers := []int{1, 2, 8}
 
@@ -363,7 +363,7 @@ func BenchmarkMPSCQueue(b *testing.B) {
 	}
 }
 
-func benchQMPSC(b *testing.B, makeQ func() Queue, producers int) {
+func benchQMPSC(b *testing.B, makeQ func() Queue[int], producers int) {
 	q := makeQ()
 	for i := range BoundedQueueSize / 2 {
 		q.Enqueue(i)

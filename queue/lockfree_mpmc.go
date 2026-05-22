@@ -2,24 +2,23 @@ package queue
 
 import "sync/atomic"
 
-type LockFreeMPMC struct {
-	arr  [BoundedQueueSize]slot
+type LockFreeMPMC[T any] struct {
+	arr  [BoundedQueueSize]slot[T]
 	head atomic.Uint64
 	tail atomic.Uint64
 }
 
-func NewLockFreeMPMC() *LockFreeMPMC {
-	q := &LockFreeMPMC{}
+func NewLockFreeMPMC[T any]() *LockFreeMPMC[T] {
+	q := &LockFreeMPMC[T]{}
 	for i := range BoundedQueueSize {
-		q.arr[i] = slot{}
 		q.arr[i].seq.Store(uint64(i))
 	}
 	return q
 }
 
-func (b *LockFreeMPMC) Enqueue(v int) bool {
+func (b *LockFreeMPMC[T]) Enqueue(v T) bool {
 	var (
-		slot *slot
+		slot *slot[T]
 		tail uint64
 		seq  uint64
 	)
@@ -46,12 +45,12 @@ func (b *LockFreeMPMC) Enqueue(v int) bool {
 	return true
 }
 
-func (b *LockFreeMPMC) Dequeue() (int, bool) {
+func (b *LockFreeMPMC[T]) Dequeue() (T, bool) {
 	var (
-		slot *slot
+		slot *slot[T]
 		head uint64
 		seq  uint64
-		val  int
+		zero T
 	)
 	for {
 		head = b.head.Load()
@@ -61,12 +60,13 @@ func (b *LockFreeMPMC) Dequeue() (int, bool) {
 		diff := int64(seq) - int64(head+1)
 
 		if diff < 0 {
-			return 0, false
+			return zero, false
 		}
 
 		if diff == 0 {
 			if b.head.CompareAndSwap(head, head+1) {
-				val = slot.val
+				val := slot.val
+				slot.val = zero
 				slot.seq.Store(head + BoundedQueueSize)
 				return val, true
 			}

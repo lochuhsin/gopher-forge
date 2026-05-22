@@ -2,26 +2,24 @@ package queue
 
 import "sync/atomic"
 
-type LockFreeMPSC struct {
+type LockFreeMPSC[T any] struct {
 	tail atomic.Uint64
 	head uint64
-	arr  [BoundedQueueSize]slot
+	arr  [BoundedQueueSize]slot[T]
 }
 
-func NewLockFreeMPSC() *LockFreeMPSC {
-	q := &LockFreeMPSC{}
-
+func NewLockFreeMPSC[T any]() *LockFreeMPSC[T] {
+	q := &LockFreeMPSC[T]{}
 	for i := range BoundedQueueSize {
 		q.arr[i].seq.Store(uint64(i))
 	}
-
 	return q
 }
 
-func (b *LockFreeMPSC) Enqueue(v int) bool {
+func (b *LockFreeMPSC[T]) Enqueue(v T) bool {
 	var (
 		tail uint64
-		slot *slot
+		slot *slot[T]
 		seq  uint64
 	)
 
@@ -43,19 +41,20 @@ func (b *LockFreeMPSC) Enqueue(v int) bool {
 				return true
 			}
 		}
-
 	}
 }
 
-func (b *LockFreeMPSC) Dequeue() (int, bool) {
+func (b *LockFreeMPSC[T]) Dequeue() (T, bool) {
+	var zero T
 	slot := &b.arr[b.head&queueMask]
 
 	seq := slot.seq.Load()
 	if seq != b.head+1 {
-		return 0, false
+		return zero, false
 	}
 
 	v := slot.val
+	slot.val = zero
 
 	slot.seq.Store(b.head + BoundedQueueSize)
 	b.head++

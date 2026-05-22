@@ -25,7 +25,7 @@ func chaosGOMAXPROCS() []int { return []int{1, 2, 4, 8} }
 // runConservation runs numWorkers pushers (each pushing a disjoint
 // integer range) concurrent with numWorkers poppers, then verifies that
 // every pushed value appears exactly once across (popped ∪ remaining).
-func runConservation(s Stack, numWorkers, pushPerWorker int) []string {
+func runConservation(s Stack[int], numWorkers, pushPerWorker int) []string {
 	var pushWg, popWg sync.WaitGroup
 	pushDone := make(chan struct{})
 

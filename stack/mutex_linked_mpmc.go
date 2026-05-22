@@ -2,21 +2,22 @@ package stack
 
 import "sync"
 
-type MutexLinkedMPMC struct {
-	head *node
+type MutexLinkedMPMC[T any] struct {
+	head *node[T]
 	mu   sync.Mutex
 }
 
-func NewMutexLinkedMPMC() *MutexLinkedMPMC {
-	return &MutexLinkedMPMC{}
+func NewMutexLinkedMPMC[T any]() *MutexLinkedMPMC[T] {
+	return &MutexLinkedMPMC[T]{}
 }
 
-func (b *MutexLinkedMPMC) Pop() (int, bool) {
+func (b *MutexLinkedMPMC[T]) Pop() (T, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	var zero T
 	if b.head == nil {
-		return 0, false
+		return zero, false
 	}
 
 	val := b.head.v
@@ -24,13 +25,11 @@ func (b *MutexLinkedMPMC) Pop() (int, bool) {
 	return val, true
 }
 
-func (b *MutexLinkedMPMC) Push(v int) {
+func (b *MutexLinkedMPMC[T]) Push(v T) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	n := &node{
-		v: v,
-	}
+	n := &node[T]{v: v}
 
 	if b.head == nil {
 		b.head = n

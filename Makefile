@@ -2,12 +2,21 @@
 
 BENCHTIME ?= 3s
 PKG       := ./...
+PKG_QUEUE := ./queue/...
+PKG_STACK := ./stack/...
+PKG_SYNCX := ./syncx/...
 COMMON    := -benchmem -benchtime=$(BENCHTIME) -run=^$$
+# Per-package bench targets sweep GOMAXPROCS to stress the scheduler.
+# Combined with the in-test contention levels (HighContention = procs*8,
+# MPMC/MPSC multipliers 1/2/8), this scales up to ~64 logical workers
+# per CPU — i.e. extreme oversubscription on the high end.
+CPU_STRESS := -cpu=1,2,4,8
 PPROF_PORT ?= 8080
 
 .PHONY: help \
         test test-short test-stress test-chaos \
         bench bench-single bench-multi bench-scale bench-mpmc-queue bench-mpsc-queue \
+        bench-queue bench-stack bench-syncx \
         bench-cpu bench-mem bench-full \
         cpu-prof mem-prof clean
 
@@ -25,6 +34,11 @@ help:
 	@echo "  bench-scale    Run MultiThread at GOMAXPROCS=1,2,4,8 (scaling curve)"
 	@echo "  bench-mpmc-queue  Run MPMC queue benchmark (Mutex vs Unpadded vs Padded)"
 	@echo "  bench-mpsc-queue  Run MPSC queue benchmark (single consumer)"
+	@echo ""
+	@echo "Per-package (stress matrix: GOMAXPROCS=1,2,4,8 × in-test contention):"
+	@echo "  bench-queue    Run all benchmarks in ./queue/..."
+	@echo "  bench-stack    Run all benchmarks in ./stack/..."
+	@echo "  bench-syncx    Run all benchmarks in ./syncx/..."
 	@echo ""
 	@echo "  bench-cpu      Run all benchmarks + write cpu.out"
 	@echo "  bench-mem      Run all benchmarks + write mem.out"
@@ -68,6 +82,15 @@ bench-mpmc-queue:
 
 bench-mpsc-queue:
 	go test -bench='BenchmarkMPSCQueue' $(COMMON) $(PKG)
+
+bench-queue:
+	go test -bench=. $(COMMON) $(CPU_STRESS) $(PKG_QUEUE)
+
+bench-stack:
+	go test -bench=. $(COMMON) $(CPU_STRESS) $(PKG_STACK)
+
+bench-syncx:
+	go test -bench=. $(COMMON) $(CPU_STRESS) $(PKG_SYNCX)
 
 bench-cpu:
 	go test -bench=. -cpuprofile=cpu.out $(COMMON) $(PKG)

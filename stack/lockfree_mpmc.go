@@ -2,16 +2,16 @@ package stack
 
 import "sync/atomic"
 
-type LockFreeMPMC struct {
-	head atomic.Pointer[node]
+type LockFreeMPMC[T any] struct {
+	head atomic.Pointer[node[T]]
 }
 
-func NewLockFreeMPMC() *LockFreeMPMC {
-	return &LockFreeMPMC{}
+func NewLockFreeMPMC[T any]() *LockFreeMPMC[T] {
+	return &LockFreeMPMC[T]{}
 }
 
-func (l *LockFreeMPMC) Push(v int) {
-	n := &node{v: v}
+func (l *LockFreeMPMC[T]) Push(v T) {
+	n := &node[T]{v: v}
 	for {
 		prev := l.head.Load()
 		n.next = prev
@@ -22,11 +22,12 @@ func (l *LockFreeMPMC) Push(v int) {
 	}
 }
 
-func (l *LockFreeMPMC) Pop() (int, bool) {
+func (l *LockFreeMPMC[T]) Pop() (T, bool) {
+	var zero T
 	for {
 		prev := l.head.Load()
 		if prev == nil {
-			return 0, false
+			return zero, false
 		}
 
 		val, next := prev.v, prev.next

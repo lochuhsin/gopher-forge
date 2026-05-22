@@ -16,30 +16,34 @@ const (
 	eliminationWaitSpins = 2048
 )
 
-type eliminationOp struct {
+// value is plain (not atomic). Synchronisation: writer publishes value
+// before either (a) s.op CAS-install that hands the op to a reader, or
+// (b) done.Store(true) that releases a waiting peer. The matching
+// acquire (s.op.Load / done.Load) happens-before any read of value.
+type eliminationOp[T any] struct {
 	kind  eliminationKind
-	value atomic.Int64
+	value T
 	done  atomic.Bool
 }
 
-type eliminationSlot struct {
-	op atomic.Pointer[eliminationOp]
+type eliminationSlot[T any] struct {
+	op atomic.Pointer[eliminationOp[T]]
 }
 
-type EliminationBackoffMPMC struct {
-	head        atomic.Pointer[node]
+type EliminationBackoffMPMC[T any] struct {
+	head        atomic.Pointer[node[T]]
 	ticket      atomic.Uint64
-	elimination []eliminationSlot
+	elimination []eliminationSlot[T]
 }
 
-func NewEliminationBackoffMPMC() *EliminationBackoffMPMC {
-	return &EliminationBackoffMPMC{
-		elimination: make([]eliminationSlot, eliminationArraySize),
+func NewEliminationBackoffMPMC[T any]() *EliminationBackoffMPMC[T] {
+	return &EliminationBackoffMPMC[T]{
+		elimination: make([]eliminationSlot[T], eliminationArraySize),
 	}
 }
 
-func (e *EliminationBackoffMPMC) Push(v int) {
-	n := &node{v: v}
+func (e *EliminationBackoffMPMC[T]) Push(v T) {
+	n := &node[T]{v: v}
 	for {
 		prev := e.head.Load()
 		n.next = prev
@@ -54,7 +58,8 @@ func (e *EliminationBackoffMPMC) Push(v int) {
 	}
 }
 
-func (e *EliminationBackoffMPMC) Pop() (int, bool) {
+func (e *EliminationBackoffMPMC[T]) Pop() (T, bool) {
+	var zero T
 	for {
 		prev := e.head.Load()
 		if prev == nil {
@@ -62,7 +67,7 @@ func (e *EliminationBackoffMPMC) Pop() (int, bool) {
 				return v, true
 			}
 			if e.head.Load() == nil {
-				return 0, false
+				return zero, false
 			}
 			continue
 		}
@@ -78,7 +83,7 @@ func (e *EliminationBackoffMPMC) Pop() (int, bool) {
 	}
 }
 
-func (e *EliminationBackoffMPMC) tryEliminatePush(v int) bool {
+func (e *EliminationBackoffMPMC[T]) tryEliminatePush(v T) bool {
 	for range eliminationAttempts {
 		slot := &e.elimination[e.randomSlot()]
 		if slot.visitPush(v) {
@@ -88,17 +93,18 @@ func (e *EliminationBackoffMPMC) tryEliminatePush(v int) bool {
 	return false
 }
 
-func (e *EliminationBackoffMPMC) tryEliminatePop() (int, bool) {
+func (e *EliminationBackoffMPMC[T]) tryEliminatePop() (T, bool) {
+	var zero T
 	for range eliminationAttempts {
 		slot := &e.elimination[e.randomSlot()]
 		if v, ok := slot.visitPop(); ok {
 			return v, true
 		}
 	}
-	return 0, false
+	return zero, false
 }
 
-func (e *EliminationBackoffMPMC) randomSlot() int {
+func (e *EliminationBackoffMPMC[T]) randomSlot() int {
 	x := e.ticket.Add(0x9e3779b97f4a7c15)
 	x ^= x >> 30
 	x *= 0xbf58476d1ce4e5b9
@@ -108,9 +114,8 @@ func (e *EliminationBackoffMPMC) randomSlot() int {
 	return int(x % uint64(len(e.elimination)))
 }
 
-func (s *eliminationSlot) visitPush(v int) bool {
-	mine := &eliminationOp{kind: eliminationPush}
-	mine.value.Store(int64(v))
+func (s *eliminationSlot[T]) visitPush(v T) bool {
+	mine := &eliminationOp[T]{kind: eliminationPush, value: v}
 
 	for {
 		curr := s.op.Load()
@@ -121,7 +126,7 @@ func (s *eliminationSlot) visitPush(v int) bool {
 			}
 		case curr.kind == eliminationPop:
 			if s.op.CompareAndSwap(curr, nil) {
-				curr.value.Store(int64(v))
+				curr.value = v
 				curr.done.Store(true)
 				return true
 			}
@@ -131,8 +136,9 @@ func (s *eliminationSlot) visitPush(v int) bool {
 	}
 }
 
-func (s *eliminationSlot) visitPop() (int, bool) {
-	mine := &eliminationOp{kind: eliminationPop}
+func (s *eliminationSlot[T]) visitPop() (T, bool) {
+	var zero T
+	mine := &eliminationOp[T]{kind: eliminationPop}
 
 	for {
 		curr := s.op.Load()
@@ -143,17 +149,17 @@ func (s *eliminationSlot) visitPop() (int, bool) {
 			}
 		case curr.kind == eliminationPush:
 			if s.op.CompareAndSwap(curr, nil) {
-				v := int(curr.value.Load())
+				v := curr.value
 				curr.done.Store(true)
 				return v, true
 			}
 		default:
-			return 0, false
+			return zero, false
 		}
 	}
 }
 
-func (s *eliminationSlot) waitForPushMatch(op *eliminationOp) bool {
+func (s *eliminationSlot[T]) waitForPushMatch(op *eliminationOp[T]) bool {
 	if waitForExchange(op) {
 		return true
 	}
@@ -164,18 +170,19 @@ func (s *eliminationSlot) waitForPushMatch(op *eliminationOp) bool {
 	return true
 }
 
-func (s *eliminationSlot) waitForPopMatch(op *eliminationOp) (int, bool) {
+func (s *eliminationSlot[T]) waitForPopMatch(op *eliminationOp[T]) (T, bool) {
+	var zero T
 	if waitForExchange(op) {
-		return int(op.value.Load()), true
+		return op.value, true
 	}
 	if s.op.CompareAndSwap(op, nil) {
-		return 0, false
+		return zero, false
 	}
 	waitForExchange(op)
-	return int(op.value.Load()), true
+	return op.value, true
 }
 
-func waitForExchange(op *eliminationOp) bool {
+func waitForExchange[T any](op *eliminationOp[T]) bool {
 	for range eliminationWaitSpins {
 		if op.done.Load() {
 			return true

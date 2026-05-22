@@ -9,18 +9,18 @@ import (
 	"time"
 )
 
-var stackFactories = map[string]func() Stack{
-	"MutexSliceMPMC": func() Stack {
-		return NewMutexSliceMPMC()
+var stackFactories = map[string]func() Stack[int]{
+	"MutexSliceMPMC": func() Stack[int] {
+		return NewMutexSliceMPMC[int]()
 	},
-	"MutexLinkedMPMC": func() Stack {
-		return NewMutexLinkedMPMC()
+	"MutexLinkedMPMC": func() Stack[int] {
+		return NewMutexLinkedMPMC[int]()
 	},
-	"LockFreeMPMC": func() Stack {
-		return NewLockFreeMPMC()
+	"LockFreeMPMC": func() Stack[int] {
+		return NewLockFreeMPMC[int]()
 	},
-	"EliminationBackoffMPMC": func() Stack {
-		return NewEliminationBackoffMPMC()
+	"EliminationBackoffMPMC": func() Stack[int] {
+		return NewEliminationBackoffMPMC[int]()
 	},
 }
 
@@ -89,7 +89,7 @@ func BenchmarkStack(b *testing.B) {
 	}
 }
 
-func benchSingleThread(b *testing.B, factory func() Stack, pushRatio int) {
+func benchSingleThread(b *testing.B, factory func() Stack[int], pushRatio int) {
 	s := factory()
 	if pushRatio < 50 {
 		// read-heavy: pre-fill so Pop is not just hitting empty.
@@ -126,7 +126,7 @@ func benchSingleThread(b *testing.B, factory func() Stack, pushRatio int) {
 	reportMetrics(b, latencies, &memBefore, &memAfter)
 }
 
-func benchConcurrent(b *testing.B, factory func() Stack, pushRatio, workers int) {
+func benchConcurrent(b *testing.B, factory func() Stack[int], pushRatio, workers int) {
 	s := factory()
 	if pushRatio < 50 {
 		for i := range prefillSize {
