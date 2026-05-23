@@ -2,7 +2,6 @@ package syncx
 
 import (
 	"forge/queue"
-	"runtime"
 	"sync"
 	"sync/atomic"
 )
@@ -141,7 +140,6 @@ func (l *LockfreeSemaphore) Acquire() {
 
 				// park, cpu burn
 				for !gate.Load() {
-					runtime.Gosched()
 				}
 			}
 			break
@@ -150,17 +148,14 @@ func (l *LockfreeSemaphore) Acquire() {
 }
 
 func (l *LockfreeSemaphore) Release() {
-	var val int64
-
-	for {
-		val = l.permits.Load()
-		if l.permits.CompareAndSwap(val, val+1) {
-
+	after := l.permits.Add(1)
+	if after <= 0 {
+		for {
 			// slow path
 			if gate, ok := l.waiters.Dequeue(); ok {
 				gate.Store(true)
+				break
 			}
-			break
 		}
 	}
 }
