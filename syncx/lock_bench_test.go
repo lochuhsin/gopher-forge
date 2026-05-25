@@ -1,6 +1,7 @@
 package syncx
 
 import (
+	"fmt"
 	"runtime"
 	"slices"
 	"sync"
@@ -186,6 +187,126 @@ func measureLockWorkload(lock testLocker, workload lockWorkload) int64 {
 		lock.Unlock()
 		return time.Since(start).Nanoseconds()
 	}
+}
+
+// BenchmarkLockScaling isolates handoff behavior under a single shared lock.
+// It mirrors the targeted queue benchmarks by sweeping workers at 1x, 2x, and
+// 8x GOMAXPROCS. Every worker repeatedly contends for the same lock, performs
+// a fixed short critical section, then releases it.
+//
+// Reports separate acquire/unlock/pair p50/p99/p999 latency. The acquire
+// latency captures queueing and cache-line contention, unlock latency captures
+// the handoff release path, and pair latency captures the whole critical
+// section transaction.
+func BenchmarkLockScaling(b *testing.B) {
+	procs := runtime.GOMAXPROCS(0)
+	multipliers := []int{1, 2, 8}
+
+	names := make([]string, 0, len(lockFactories))
+	for n := range lockFactories {
+		names = append(names, n)
+	}
+	slices.Sort(names)
+
+	for _, name := range names {
+		factory := lockFactories[name]
+		b.Run(name, func(b *testing.B) {
+			for _, m := range multipliers {
+				workers := max(procs*m, 1)
+				b.Run(fmt.Sprintf("Workers=%d", workers), func(b *testing.B) {
+					benchLockScaling(b, factory, workers)
+				})
+			}
+		})
+	}
+}
+
+func benchLockScaling(b *testing.B, factory func() testLocker, workers int) {
+	lock := factory()
+
+	iterPerWorker := b.N / workers
+	if iterPerWorker == 0 {
+		iterPerWorker = 1
+	}
+	totalIters := iterPerWorker * workers
+
+	acqLat := make([][]int64, workers)
+	unlockLat := make([][]int64, workers)
+	pairLat := make([][]int64, workers)
+	for w := range workers {
+		acqLat[w] = make([]int64, iterPerWorker)
+		unlockLat[w] = make([]int64, iterPerWorker)
+		pairLat[w] = make([]int64, iterPerWorker)
+	}
+
+	var ready sync.WaitGroup
+	var wg sync.WaitGroup
+	startLine := make(chan struct{})
+
+	ready.Add(workers)
+	wg.Add(workers)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for w := range workers {
+		go func(id int) {
+			defer wg.Done()
+			localAcq := acqLat[id]
+			localUnlock := unlockLat[id]
+			localPair := pairLat[id]
+			ready.Done()
+			<-startLine
+
+			for i := range iterPerWorker {
+				pairStart := time.Now()
+
+				acqStart := pairStart
+				lock.Lock()
+				localAcq[i] = time.Since(acqStart).Nanoseconds()
+
+				doLockCriticalWork(128)
+
+				unlockStart := time.Now()
+				lock.Unlock()
+				localUnlock[i] = time.Since(unlockStart).Nanoseconds()
+				localPair[i] = time.Since(pairStart).Nanoseconds()
+			}
+		}(w)
+	}
+	ready.Wait()
+	close(startLine)
+	wg.Wait()
+	b.StopTimer()
+
+	reportLockScalingMetrics(b, acqLat, unlockLat, pairLat, totalIters)
+}
+
+func reportLockScalingMetrics(b *testing.B, acqLat, unlockLat, pairLat [][]int64, totalIters int) {
+	acqAll := flattenLockLatencies(acqLat, totalIters)
+	unlockAll := flattenLockLatencies(unlockLat, totalIters)
+	pairAll := flattenLockLatencies(pairLat, totalIters)
+
+	slices.Sort(acqAll)
+	slices.Sort(unlockAll)
+	slices.Sort(pairAll)
+
+	b.ReportMetric(float64(lockPercentile(acqAll, 0.50)), "acq-p50")
+	b.ReportMetric(float64(lockPercentile(acqAll, 0.99)), "acq-p99")
+	b.ReportMetric(float64(lockPercentile(acqAll, 0.999)), "acq-p999")
+	b.ReportMetric(float64(lockPercentile(unlockAll, 0.50)), "unlock-p50")
+	b.ReportMetric(float64(lockPercentile(unlockAll, 0.99)), "unlock-p99")
+	b.ReportMetric(float64(lockPercentile(unlockAll, 0.999)), "unlock-p999")
+	b.ReportMetric(float64(lockPercentile(pairAll, 0.50)), "pair-p50")
+	b.ReportMetric(float64(lockPercentile(pairAll, 0.99)), "pair-p99")
+	b.ReportMetric(float64(lockPercentile(pairAll, 0.999)), "pair-p999")
+}
+
+func flattenLockLatencies(latencies [][]int64, totalIters int) []int64 {
+	all := make([]int64, 0, totalIters)
+	for _, l := range latencies {
+		all = append(all, l...)
+	}
+	return all
 }
 
 var lockBenchSink uint64

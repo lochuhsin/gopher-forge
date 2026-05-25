@@ -3,7 +3,11 @@ package syncx
 import (
 	"sync"
 	"sync/atomic"
+	_ "unsafe"
 )
+
+//go:linkname runtime_SemacquireMutex sync.runtime_SemacquireMutex
+func runtime_SemacquireMutex(s *uint32, lifo bool, skipframes int)
 
 // SpinLock is the simplest busy-wait mutual exclusion lock: one atomic flag
 // marks whether the lock is held, and contenders repeatedly CAS the flag until
@@ -140,7 +144,21 @@ func (m *MCSLock) Unlock() {
 	next.locked.Store(false)
 }
 
-type MutexLock struct{}
+type RCULock struct {
+}
+
+func (r *RCULock) Lock() {
+
+}
+
+func (r *RCULock) Unlock() {
+
+}
+
+type MutexLock struct {
+	state atomic.Int32
+	sema  uint32
+}
 
 func (m *MutexLock) Lock() {
 
