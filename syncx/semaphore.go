@@ -68,11 +68,16 @@ func (m *MutexSemaphore) Release() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.count == 0 {
+		panic("syncx: release without acquire")
+	}
+
 	if len(m.waiters) > 0 {
 		gate := m.waiters[0]
 		m.waiters[0] = nil // gc collect
 		m.waiters = m.waiters[1:]
 		gate.Unlock()
+		return
 	}
 	m.count--
 }
