@@ -3,6 +3,16 @@
 > Category 抽象: 維持 N 個 permit;Acquire 等到有 permit,Release 歸還一個。
 > Underlying logic: Counting state + waiter queue + park/unpark。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **A(3mo·廉價完成)** | **5.53** | 6.5/10 | 0.85 `tokio::sync::Semaphore` | 1.0 週 | T1 |
+
+> 5 變體已實作;補 weighted/timeout/priority。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 - 同時持有 permit 的 caller ≤ initial N (counting semaphore)
@@ -143,3 +153,54 @@ func (s *CountingSemaphore) TryAcquire() bool
 - → `park/` (LockfreeSemaphore 目前用 CPU burn waiter,該改成 park-based)
 - → `memory/` (release-acquire on permit count)
 - 內部用 mutex + cond,或 park/unpark
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 1(Composite ★3.4)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★3/5 | Required (basic) / Advanced (lock-free) | Optiver Glassdoor: "asked about semaphore to achieve thread synchronization"; HFT pre-trade risk controls use semaphore-style throttling |
+| **Crypto** | ★3/5 | Required | RPC rate limiting (Helius, QuickNode); block subscription management; Chainlink OCR submission throttling |
+| **AI Infra** | ★3/5 | Required (weighted) | GPU memory budget enforcement — each request reserves N KV cache blocks; vLLM uses weighted semaphore semantics |
+| **FAANG** | ★4/5 | Required | Amazon SDE3: "implement a distributed semaphore for rate limiting across 100 nodes"; `chan struct{}` as semaphore is classic Go interview trick |
+| **Dubai** | ★4/5 | Required | ratelimit/ 的底層原語;Bybit/Binance infra 常用 |
+| **Composite** | **★3.4/5.0** | **Tier 1** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 在 **≥2 個 vertical** 被列為 Required,或 composite ≥ 3.4。
+
+- **Counting Semaphore** — 跨所有 vertical 都 Required;bounded goroutine pool 是 Go 面試標準題
+  - Evidence: [Optiver Glassdoor](https://www.interviewquery.com/interview-guides/optiver-software-engineer) — "asked about semaphore to achieve thread synchronization"
+- **Binary Semaphore vs Mutex 對比** — ownership semantics 差異是面試教學點;Java `Semaphore(1, fair)` anti-pattern
+  - Evidence: FAANG research — semaphore ★★★★ at E5; `chan struct{}` as semaphore is Go senior question
+- **WeightedSemaphore** — AI Infra Required:GPU memory budget / KV cache block reservation
+  - Evidence: [vLLM scheduler design](https://github.com/vllm-project/vllm) — weighted semaphore for KV cache budget enforcement; mirrors `golang.org/x/sync/semaphore`
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> 在 **1-2 個 vertical** 是 differentiator,或 composite < 3.4 但有特定 vertical 看重。
+
+- **Context-aware Timeout Semaphore** — cleanup race 問題是進階面試考點;理解 cancel waiter 正確移除
+  - Best for: FAANG / AI Infra (production code 必備)
+- **Priority Semaphore** — AI Infra inference scheduler 用;VIP vs standard traffic
+  - Best for: AI Infra (LLM serving multi-priority admission control)
+- **Counting via Futex (C++20 style)** — 負數編碼 waiter 數;`std::counting_semaphore` 對照
+  - Best for: HFT (C++ interview 對照)
+
+### Recommended Order(本 package 內部)
+
+1. WeightedSemaphore(x/sync 對照,實用)
+2. Context-aware Timeout(cleanup race 教學)
+3. Counting via Futex(C++20 對照,接 park/)
+4. Priority Semaphore(AI Infra inference scheduler)
+
+### 對應的 Blog 題材(若想寫)
+
+- "Go semaphore 完全指南:從 chan struct{} 到 weighted semaphore"
+- "GPU memory budget with weighted semaphore:vLLM KV cache 設計"

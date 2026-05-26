@@ -4,6 +4,16 @@
 > **Note:** 你的 `future.go` 目前是空的,整個 category 待補。
 > Underlying logic: state machine `Pending → Set → Read`,加上 waiter 喚醒。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **B(3mo·deep showcase)★** | **3.75** | 7.5/10 | 1.0 `Future` trait+tokio | 2.0 週 | T1 |
+
+> **Rust async 核心** — 自刻 Future 是 Rust infra 入門信號最強。從零做。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 - Set 只能成功一次 (write-once);多次 Set 第二次起 fail 或 panic
@@ -194,3 +204,53 @@ type Future[T] struct {
 - → `memory/` (Set 是 release, Get 是 acquire)
 - 跟 `syncx/latch_TODO.md` 概念近 — `CountDownLatch` 是 N→0 latch,Future 是 set-value latch
 - `ThenAsync` 內部需要 executor → 跟 `deque/` work-stealing 對接
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 1(Composite ★3.4)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★3/5 | Required (Two Sigma) | Citadel: "async programming with sender/receiver"; Two Sigma Rust async framework uses Future-based patterns |
+| **Crypto** | ★3/5 | Required | Chainlink OCR: async oracle aggregation via Future; async Rust Futures in Helius/Kraken backend |
+| **AI Infra** | ★4/5 | Advanced | Ray remote function calls return Futures; vLLM async engine returns futures for request completion; Pathways TPU dispatch uses future-based async dataflow |
+| **FAANG** | ★4/5 | Required | Java `CompletableFuture` is Amazon SDE3 prep tool; goroutine + channel as Future = senior Go question |
+| **Dubai** | ★3/5 | Required | BNPL async composition (Tabby/Tamara); async service coordination |
+| **Composite** | **★3.4/5.0** | **Tier 1** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 在 **≥2 個 vertical** 被列為 Required,或 composite ≥ 3.4。
+
+- **Promise + Future split** — write-once 三相 state machine;基礎 async programming pattern
+  - Evidence: [Citadel blog](https://www.citadelsecurities.com/careers/career-perspectives/technical-spotlight-async-programming-with-sender-receiver/) — "async programming with sender/receiver" for concurrent systems
+- **SharedFuture (multi-reader)** — C++ `std::shared_future` 對照;Ray remote return values = SharedFuture
+  - Evidence: [FAANG research](../docs/research/faang.md) — "goroutine + channel as Future is senior Go interview question"
+- **PackagedTask** — 把 sync function 轉 async;thread pool / goroutine 接 Future 結果
+  - Evidence: Java `FutureTask` is FAANG Java interview prerequisite; maps to Go goroutine + channel pattern
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> 在 **1-2 個 vertical** 是 differentiator,或 composite < 3.4 但有特定 vertical 看重。
+
+- **CompletableFuture style (Then/Map/WhenAll/WhenAny)** — AI Infra 最高信號;Pathways async dataflow graph edges
+  - Best for: AI Infra (Ray, Pathways, vLLM); FAANG (Java CompletableFuture cited in Amazon SDE3 guide)
+- **CancellableFuture** — Rust async cancellation 模型 (drop = cancel);cooperative cancellation
+  - Best for: Crypto (Rust-heavy shops: Helius, Jito, Kraken); AI Infra (request preemption)
+
+### Recommended Order(本 package 內部)
+
+1. Promise + Future split(核心三相)
+2. PackagedTask(簡單包裝,可用)
+3. CompletableFuture / Then / Map(composable)
+4. CancellableFuture(Rust async 對照)
+5. SharedFuture + WhenAll / WhenAny combinator
+
+### 對應的 Blog 題材(若想寫)
+
+- "Go Future/Promise:從 channel 到 CompletableFuture 風格的 monadic 組合"
+- "Ray remote 的底層原語:Future + Actor = 分布式計算圖"

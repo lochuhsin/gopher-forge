@@ -3,6 +3,17 @@
 > A **barrier** synchronizes N goroutines: all must arrive before any can proceed.
 > 比 lock 更高層次的協調 — lock 保護 critical section, barrier 同步 phase。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **基礎A(3mo·廉價完成)** | **7.00** | 5.0/10 | 0.7 | 0.5 週 | T1 |
+| **進階later(AI infra)** | **2.80** | 6.0/10 | 0.7 | 1.5 週 | T2 |
+
+> 基礎 Cyclic 廉價補完(Phase A);tournament/dissemination(NCCL)只走 AI infra 才做。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 家族界線 (重要!)
 
 不要混淆兩個相鄰的家族:
@@ -173,6 +184,74 @@
 - → `memory/` (release-acquire on sense bits, flag publication)
 - 不需要 reclamation (barrier 不分配/釋放節點,full lifetime)
 - 跟 §G (latch family) 鄰近 — 參考 `TODO_LATCH.md`
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 1 基礎(Composite ★3.6) / Tier 2 進階(Composite ★3.0)**。
+
+### Scoring Matrix (基礎 Barrier)
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★2/5 | Rarely tested | No HFT interview source asked about barriers in 55+ source review; pipeline concurrency is the HFT pattern |
+| **Crypto** | ★3/5 | Advanced | Tree barrier maps to Narwhal DAG round synchronization; distributed validator synchronization |
+| **AI Infra** | ★5/5 | Required | NCCL AllReduce = barrier algorithm; every training step requires AllReduce across GPUs |
+| **FAANG** | ★5/5 | Required | `sync.WaitGroup` = counting barrier; CyclicBarrier is Java senior interview question at Snowflake/Databricks |
+| **Dubai** | ★3/5 | Required at G42 | AI infra at G42/Core42 uses barrier patterns for distributed training |
+| **Composite (基礎)** | **★3.6/5.0** | **Tier 1** | — |
+
+### Scoring Matrix (進階 Barrier — Tournament/Dissemination/CombiningTree)
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★2/5 | Niche | Not tested; NCCL pattern is AI infra territory |
+| **Crypto** | ★3/5 | Advanced | Narwhal DAG round synchronization = dissemination-like pattern |
+| **AI Infra** | ★5/5 | Required (NCCL team) | Combining-tree = NCCL tree AllReduce; Dissemination = NCCL recursive halving-doubling |
+| **FAANG** | ★2/5 | Advanced (not E5) | ★★ at FAANG; ★★★★ at AI infra companies per research |
+| **Dubai** | ★3/5 | Advanced at G42 | G42 AI infra training infrastructure |
+| **Composite (進階)** | **★3.0/5.0** | **Tier 2** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 在 **≥2 個 vertical** 被列為 Required,或 composite ≥ 3.4。
+
+- **Counting Barrier** — 理解 barrier 本質;O(N) contention 問題是 N-way 同步入門
+  - Evidence: FAANG: ★★★★★ (WaitGroup variant = counting barrier); every Go parallel job uses this
+- **Sense-Reversing Barrier** — reuse race 解法;非常適合講"為什麼 CyclicBarrier 要有 generation"
+  - Evidence: Herlihy & Shavit Art of Multiprocessor Programming Ch.17 — standard reference
+- **CyclicBarrier (Java-style)** — Java senior 面試題;Snowflake/Databricks;`broken` state 邊界情況
+  - Evidence: [FAANG research](../docs/research/faang.md) — "CyclicBarrier is Java senior interview question" at Snowflake/Databricks; ★★★ at FAANG
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> 在 **1-2 個 vertical** 是 differentiator — 特別是 AI Infra 路線。
+
+- **Combining Tree Barrier** — NCCL tree AllReduce 對應;每個 internal node = GPU reduce and forward
+  - Best for: AI Infra (Anthropic/OpenAI/NVIDIA NCCL team 直接信號)
+  - Evidence: [NCCL developer blog](https://developer.nvidia.com/blog/fast-multi-gpu-collectives-nccl/) — tree AllReduce double binary tree is NCCL 2.4+ default
+- **Dissemination Barrier** — NCCL recursive halving-doubling 對應;log N rounds, no center
+  - Best for: AI Infra — [NCCL 2.4 blog](https://developer.nvidia.com/blog/massively-scale-deep-learning-training-nccl-2-4/) — latency-optimal small-message AllReduce
+- **Tournament Barrier** — static winner/loser assignment;explains pipeline-parallel micro-batch sync
+  - Best for: AI Infra / HPC (Hensgen-Finkel-Manber 1988 paper)
+- **Static Tree Barrier (Mellor-Crummey & Scott)** — same 1991 paper as MCS Lock;local spin = no hot spot
+  - Best for: HPC / AI Infra — O(1) remote memory references per processor
+
+### Recommended Order(本 package 內部)
+
+1. Centralized Counting Barrier(暖身)
+2. Sense-Reversing Barrier(reuse race 解法)
+3. CyclicBarrier(完整 Java API,broken state)
+4. Static Tree Barrier MCS(銜接 MCS Lock)
+5. Dissemination Barrier(NCCL 對應,最優雅)
+6. Tournament / Combining Tree(對照組)
+7. Phaser(Java 7+ 挑戰題)
+
+### 對應的 Blog 題材(若想寫)
+
+- "Dissemination barrier = NCCL recursive halving-doubling:從 Go 代碼到 GPU collective ops"
+- "barrier algorithms 全家族:counting → sense-reversing → tournament → dissemination 演進"
 
 ## G. 鄰近家族: Latch / Completion (不是 barrier,但常被混為一談)
 

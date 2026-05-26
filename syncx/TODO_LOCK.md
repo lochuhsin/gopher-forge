@@ -3,6 +3,16 @@
 > Category 抽象: Mutual exclusion — 同一時間只允許一個 holder 進入 critical section。
 > Underlying logic: 從 spin (CPU burn) → queue-based (cache-local spin) → sleeping (futex)。Trade CPU vs latency vs fairness。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **A(3mo·廉價完成)** | **8.00** | 8.0/10 | 1.0 `parking_lot`/`seqlock` | 1.0 週 | T1 |
+
+> 基礎已實作;補 CLH+Seqlock 即可。Seqlock=市場資料極限場景,Rust 相關性最高那圈。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 - Acquire ↔ Release 必須成對 (per goroutine)
@@ -225,3 +235,62 @@ type ReentrantMutex struct {
 - Sleeping variants → `park/` (futex / semacquire wrapper)
 - 全部 → `memory/` (release/acquire ordering)
 - RCULock 已搬到 `rcu/`
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 1(Baseline ★3.6 / 進階 ★3.4)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★5/5 | Required (baseline) / Advanced (MCS/Seqlock) | HRT JD: "implementation of lock-free or fine-grained locking ideas"; rigtorp.se TTAS benchmark 442ns vs 854ns naive |
+| **Crypto** | ★3/5 | Advanced | Jito JD: CPU microarchitecture; Block-STM atomic fetch-and-increment; Coinbase/Kraken RWMutex for shared state |
+| **AI Infra** | ★3/5 | Required (RWMutex/Spin) / Advanced (MCS) | vLLM KV cache block table uses RWMutex; SpinLock maps to CUDA `atomicCAS`-based shared memory locks |
+| **FAANG** | ★4/5 | Required (Mutex/RWMutex) / Not-tested (MCS/Ticket) | `sync.Mutex`/`RWMutex` = Go senior interview staple; MCS/Ticket are ★1 at FAANG per research |
+| **Dubai** | ★3/5 | Required (baseline) | Go concurrency signal for Bybit/Binance infra; RWMutex baseline |
+| **Composite** | **★3.6/5.0 (baseline) / ★3.4/5.0 (進階)** | **Tier 1** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 在 **≥2 個 vertical** 被列為 Required,或 composite ≥ 3.4。
+
+- **Mutex/RWMutex wrapper** — 所有 vertical 都要求,Go senior 面試基礎;RWMutex 是 thread-safe LRU cache 標準實作
+  - Evidence: [FAANG research](../docs/research/faang.md) — ★★★★ at FAANG; vLLM KV cache table uses RWMutex
+- **RWMutex 三變體(Reader-preferring / Writer-preferring / Fair)** — Java `ReentrantReadWriteLock` 面試必問,writer starvation 問題在 Crypto/HFT 都有對應
+  - Evidence: Martin Thompson StampedLock benchmark; Java `ReentrantReadWriteLock` default is writer-preferring
+- **SpinLock (TTAS with backoff)** — HFT Required;解釋 cache-line bouncing 是面試標準問題
+  - Evidence: [rigtorp.se/spinlock](https://rigtorp.se/spinlock/) — TTAS 442ns vs 854ns naive; XTX: "lock-free programming all matter"
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> 在 **1-2 個 vertical** 是 differentiator,或 composite < 3.4 但有特定 vertical 看重。
+
+- **MCS Lock** — 解釋 ticket lock cache-line bouncing 問題;在 Crypto/AI Infra 是 signal
+  - Best for: HFT / AI Infra;Mellor-Crummey & Scott 1991 論文知識 = senior differentiator
+- **CLH Lock** — MCS 的 cousin;Java AQS 底層就是 CLH 變體
+  - Best for: FAANG Java interviews (Snowflake/Databricks)
+- **Seqlock** — "writer never blocks reader";Linux `gettimeofday` 用此;HFT price data protection
+  - Best for: HFT — [lucisqr.substack.com MemGlass blog](https://lucisqr.substack.com/p/memglass-peeking-into-live-trading) 有 seqlock live trading case
+- **Adaptive Mutex** — spin-then-sleep;Solaris / FreeBSD adaptive;解釋 futex 3-state design
+  - Best for: HFT / AI Infra (understanding lock internals)
+- **Futex-based MutexLock (3-state)** — Drepper "Futexes Are Tricky";省 70%+ syscall
+  - Best for: HFT / kernel-level engineers; brocbyte HFT-01 blog 直接引用
+
+### Recommended Order(本 package 內部)
+
+1. MutexLock (futex / semacquire-based) — skeleton 補完
+2. RWMutex 三變體(self-impl, not wrap)
+3. CLH Lock(MCS cousin, Java AQS 對照)
+4. Seqlock(HFT signal + Linux kernel)
+5. StampedLock(Seqlock 延伸, Java Doug Lea 設計)
+6. Adaptive Mutex(接 park/ + memory/)
+7. (進階) HemLock, BrLock
+
+### 對應的 Blog 題材(若想寫)
+
+- "Spin → TTAS → Ticket → MCS:四個 lock 的 cache contention benchmark on Go"
+- "Seqlock:為什麼 Linux gettimeofday 不用 mutex"
+- "futex 3-state:為什麼 unlock 可以不 syscall"

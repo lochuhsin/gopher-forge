@@ -3,6 +3,16 @@
 > Category 抽象: Typed message passing — producer 發訊息,consumer 收訊息。
 > 包含 *rendezvous* (buffer=0) 跟 *buffered* (buffer>0) 兩種 — semantic 是 qualitatively 不同。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **later(6mo+)** | **2.60** | 6.5/10 | 0.6(最低,Go-specific) | 1.5 週 | T0(全球)但 R_corr 最低 |
+
+> 全球 T0,但 channel 是 Go 特有,Rust transfer 差 → Dubai 排後。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 - Send 在 channel 未滿時不阻塞;滿時 block 或 fail
@@ -226,3 +236,64 @@ func Select(cases ...SelectCase) (chosenIdx int, val any, ok bool)
 - → `queue/` (Bounded MPMC 用現有 LockFreeMPMC)
 - → `syncx/latch.go` Notify (Watch 用 Notify 喚醒 watcher)
 - 跟 `syncx/future_TODO.md` OneShot 同源
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 0(Composite ★4.2)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★4/5 | Advanced (Go-specific) | Pipeline concurrency: feed handler → strategy → risk → OMS = channel pipeline; Disruptor-style bounded MPMC is HFT standard |
+| **Crypto** | ★4/5 | Required | Coinbase/Kraken Go-heavy; Narwhal network layer uses actor-like message passing; block subscription management |
+| **AI Infra** | ★4/5 | Required | vLLM MultiProcExecutor uses broadcast message queues; request cancellation pipeline via scope + channel |
+| **FAANG** | ★5/5 | Required | Go channels = primary concurrency abstraction tested everywhere; pipeline/fan-out/fan-in is senior Go coding question |
+| **Dubai** | ★4/5 | Required | Go-heavy market; Bybit/Binance use channel-based service coordination |
+| **Composite** | **★4.2/5.0** | **Tier 0** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 在 **≥2 個 vertical** 被列為 Required,或 composite ≥ 3.4。
+
+- **Fan-out / Fan-in pattern** — Go senior 標準題;vLLM worker dispatch = fan-out;FAANG parallel HTTP downloader
+  - Evidence: [FAANG research](../docs/research/faang.md) — ★★★★★ at FAANG; pipeline pattern appears in Google/Cloudflare interviews
+- **Pipeline with backpressure** — bounded channel + cancellation;HFT feed handler pipeline 直接對應
+  - Evidence: HFT pipeline is feed handler → normalizer → strategy → risk → OMS; each stage is a pipeline channel
+- **Channel as semaphore** (`chan struct{}`) — 解釋 why it works = Go internals depth;`chan struct{}` vs `sync.WaitGroup` tradeoff
+  - Evidence: FAANG research — "channel as semaphore is a test of Go internals depth"
+- **Unbuffered vs buffered channel deadlock 分析** — Go 面試必考;rendezvous semantics
+  - Evidence: Cloudflare/Datadog/Uber Go senior interview: "tricky Golang interview questions" series on DEV Community
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> 在 **1-2 個 vertical** 是 differentiator,或 composite < 3.4 但有特定 vertical 看重。
+
+- **Priority channel** — 多優先級路由;AI Infra 推理 scheduler VIP vs standard
+  - Best for: AI Infra (LLM serving admission control)
+- **Bounded MPMC channel wrapper** — 高性能 worker pool input;比 Go built-in chan 快
+  - Best for: HFT / Crypto (market data fan-out needs lock-free MPMC)
+- **Broadcast channel (1:N)** — market data pub/sub within process;Disruptor 語義
+  - Best for: HFT (1 producer → N consumer pattern); Crypto CEX market data
+- **Watch channel (latest-value-only)** — config reload, leader election;Rust tokio 對照
+  - Best for: AI Infra (model weight hot-reload); FAANG (service mesh config update)
+- **Rendezvous (SynchronousQueue lock-free)** — Java SynchronousQueue 對照;dual-stack algorithm
+  - Best for: FAANG Java interviews (SynchronousQueue = thread pool handoff)
+- **Select primitive 自刻** — Go runtime `selectgo` 對照;最難;Go runtime internals signal
+  - Best for: FAANG (demonstrates Go runtime depth)
+
+### Recommended Order(本 package 內部)
+
+1. OneShot(接 Future TODO)
+2. Bounded MPMC wrapper(現有 queue 直接用)
+3. Broadcast(pub/sub 範式)
+4. Watch(broadcast 簡化版)
+5. Rendezvous lock-free SynchronousQueue(進階)
+6. Select primitive(最難,Go runtime 對照)
+
+### 對應的 Blog 題材(若想寫)
+
+- "Go channel pattern 全攻略:fan-in/out, backpressure, select deadlock 分析"
+- "Tokio sync primitives 的 Go 等價:watch/broadcast/oneshot 如何自刻"

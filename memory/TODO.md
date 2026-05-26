@@ -3,6 +3,16 @@
 > **Building-block category** — 所有 lock-free / lock-based 程式的底層共通語言。
 > Underlying logic: 把硬體 memory model + 編譯器 reordering 抽象成 6 種 ordering,讓演算法描述 *語意* 而不是 *指令*。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **B(3mo·deep showcase)★** | **4.00** | 8.0/10 | 1.0 `std::atomic Ordering` | 2.0 週 | T1 |
+
+> Rust 系統面試核心;Bybit infra 極限。ordering + atomics + OnceCell。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 - C++ / Rust / Go atomic 的 6 種 ordering: `relaxed`, `consume`, `acquire`, `release`, `acq_rel`, `seq_cst`
@@ -112,3 +122,56 @@ Go 的 atomic 是 seq_cst,沒有 fine-grained ordering API。但在 weak memory 
 
 - 被所有 lock-free DS 消費 (queue, stack, deque, rcu, reclamation, hazard)
 - 沒有 dependency — 是最底層
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 1(Composite ★3.4)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★5/5 | Required | HRT verbatim: "When is acquire/release sufficient, and when do you need stronger ordering?"; brocbyte HFT-03 dedicated memory model tutorial |
+| **Crypto** | ★4/5 | Advanced | Coinbase LMAX: "10x fewer allocations, 24x faster" — understanding GC pressure requires memory ordering; Jito JD: "5+ years systems-level programming" |
+| **AI Infra** | ★3/5 | Required (RWMutex/ordering) | vLLM KV cache block table uses RWMutex ordering; SpinLock = CUDA atomicCAS-based shared memory locks |
+| **FAANG** | ★2/5 | Advanced only | Go memory model (happens-before via channels/mutex) tested at Cloudflare/Snowflake; Go race detector is more FAANG-relevant than ordering theory |
+| **Dubai** | ★3/5 | Advanced | Relevant for Dubai HFT-adjacent roles (Bybit/OKX matching engine) |
+| **Composite** | **★3.4/5.0** | **Tier 1** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 在 **≥2 個 vertical** 被列為 Required,或 composite ≥ 3.4。
+
+- **Acquire/Release 配對拆解** — HFT 最被引用的單一 topic(31 個 sources 引用);release on writer + acquire on reader 的 happens-before chain
+  - Evidence: [brocbyte HFT-03](https://brocbyte.substack.com/p/hft-03-how-you-could-invent-the-c) — dedicated HFT memory model tutorial; [HRT prep guide](https://hackerprep.io/blog/hrt-low-latency-cpp-system-design-prep) — verbatim question
+- **Publication safety patterns** — immutable publish + acquire load;OnceCell DCL 修正
+  - Evidence: brocbyte HFT-01 — "Build your own std::mutex" using futex internals + memory ordering
+- **Double-checked locking 三錯一對** — Java 1.4 broken → volatile 修正;C++11 atomic 修正;Go atomic = seq_cst 不會錯但可優化
+  - Evidence: [FAANG research](../docs/research/faang.md) — memory ordering tested at Cloudflare (Rust) and Snowflake (Java JMM)
+- **OnceCell[T]** — lazy initialization under concurrent access;state 0=empty → 1=initing → 2=done
+  - Evidence: FAANG ★★★★ — "`sync.Once` implementation from scratch using atomics" is senior Go interview question
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> 在 **1-2 個 vertical** 是 differentiator。
+
+- **Litmus tests** (放 `_lab/verify/`) — 展示 formal correctness reasoning;x86 vs ARM reordering 對比
+  - Best for: HFT (Citadel C++26 early adoption; Herb Sutter memory safety emphasis)
+- **Atomic refcount** — Arc/shared_ptr 等價;release on decrement + acquire if zero
+  - Best for: HFT (C++ equivalent of `std::shared_ptr` atomic refcount)
+- **x86 vs ARM fence 分析** — x86 release/acquire 是 free (regular MOV);ARM 需要 DMB;MFENCE 只在 seq_cst store 需要
+  - Best for: HFT (Citadel/HRT/XTX;C++ memory model interview distinguishes senior from junior)
+
+### Recommended Order(本 package 內部)
+
+1. 寫 cheatsheet:6 ordering 對應 x86/ARM 指令
+2. Once / OnceCell 自刻(release/acquire 詳細注解)
+3. 找 Go race detector 抓不到的 ordering bug,寫 case study
+4. Litmus tests(放 _lab/verify/)
+
+### 對應的 Blog 題材(若想寫)
+
+- "x86 vs ARM memory ordering:為什麼你的 SPSC queue 在 Mac M1 上需要顯式 fence"
+- "OnceCell:從破損的 DCL 到正確的 lazy initialization 三種語言對比"

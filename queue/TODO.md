@@ -3,6 +3,16 @@
 > Category 抽象: FIFO ordered transfer。Producer 入 tail,consumer 出 head,順序保留。
 > Underlying logic: head/tail 上的協調 + concurrency profile 作為 type-level constraint。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **B(3mo·deep showcase)★ portfolio 主力** | **3.80** | 9.5/10 | 1.0 `crossbeam-queue` | 2.5 週 | T0 |
+
+> 最高 V;Bybit 撮合 + Coinbase LMAX。補純 SPSC(rigtorp)+ Michael-Scott + benchmark。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 - `enqueue(v)` happens-before `dequeue(v)` — FIFO 在 happens-before 關係下保留
@@ -144,3 +154,55 @@ type msNode[T] struct {
 - M&S queue → `reclamation/` (HP 或 EBR)
 - LMAX Disruptor 不需要 reclamation (ring 自然覆寫)
 - 全部 lock-free → `memory/` (release/acquire fence 模式)
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 0(Composite ★4.8)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★5/5 | Required | Headlands: "asked to implement a lock-free SPSC queue in C++" (confirmed Glassdoor); quantdev.blog SPSC with acquire/release + cache-line alignas() |
+| **Crypto** | ★5/5 | Required (CEX) | Coinbase: LMAX ring buffer for market data — "10x fewer allocations, 24x faster than channels"; Jito bundle ingestion queue |
+| **AI Infra** | ★5/5 | Required | vLLM dual-queue scheduler (waiting + running); lock-free MPMC for CUDA stream; SPSC ring buffer for GPU-CPU data transfer |
+| **FAANG** | ★5/5 | Required | Google/Meta: "thread-safe bounded blocking queue" = canonical coding question; MPSC maps to Kafka partition model conceptually |
+| **Dubai** | ★4/5 | Required | Bybit/OKX matching engine + market data use lock-free queue; Coinbase LMAX pattern cited |
+| **Composite** | **★4.8/5.0** | **Tier 0** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 在 **≥2 個 vertical** 被列為 Required,或 composite ≥ 3.4。
+
+- **SPSC ring buffer (Rigtorp style)** — 最高 ROI 單一 item;head/tail 必須在不同 cache line 是面試分水嶺
+  - Evidence: [hackerprep.io/company/headlands](https://hackerprep.io/company/headlands) — "implement lock-free SPSC queue" confirmed; [quantdev.blog](https://quantdev.blog/posts/spsc_lockfree_queue/index.html) — cache padding analysis
+- **MPSC queue** — Michael-Scott 或 padded variant;producer CAS + exclusive consumer
+  - Evidence: [BagritsevichStepan/lock-free-data-structures](https://github.com/BagritsevichStepan/lock-free-data-structures) — "used in HFT to share data between market data receiver and strategies"
+- **MPMC queue (Vyukov bounded ring)** — seq-based CAS;LockFreePaddedMPMC 是 production 版
+  - Evidence: [rigtorp/MPMCQueue](https://github.com/rigtorp/awesome-lockfree) — reference MPMC with padding; Google/Meta "thread-safe bounded blocking queue" coding question
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> 在 **1-2 個 vertical** 是 differentiator。
+
+- **Padded MPMC with Disruptor wait strategy** — Disruptor 的 wait strategy (BusySpin/Yield/Blocking) 是 performance tuning 的最後一層
+  - Best for: HFT / Crypto CEX — [MyntBit](https://www.myntbit.com/training/disruptor-cursor-barrier) "Disruptor SPSC rated as hard quant interview question at Jane Street, Citadel, Two Sigma"
+- **LMAX Disruptor (1P/NC + barrier)** — dependency graph consumer pipeline;broadcast 不是 transfer
+  - Best for: HFT — [lmax-exchange.github.io/disruptor](https://lmax-exchange.github.io/disruptor/disruptor.html) — "3 orders of magnitude lower latency"; Coinbase production usage
+- **Michael-Scott unbounded MPMC (with helping)** — lock-free correctness + ABA hazard
+  - Best for: FAANG (Java `ConcurrentLinkedQueue` 基於 M&S; correctness reasoning signal)
+
+### Recommended Order(本 package 內部)
+
+1. LockFreeSPSC Rigtorp(cache padding + acquire/release)
+2. LMAX Disruptor(blog 素材)
+3. Michael-Scott MPMC(接 hazard pointer)
+4. Vyukov Intrusive MPSC(cheap win)
+5. Priority Queue / Wait-free(純學術,選做)
+
+### 對應的 Blog 題材(若想寫)
+
+- "Go SPSC ring buffer:從 channel 到 lock-free,benchmark 對比(throughput + p99 + cache miss)"
+- "LMAX Disruptor in Go:為什麼 Coinbase 說比 channel 快 24x"

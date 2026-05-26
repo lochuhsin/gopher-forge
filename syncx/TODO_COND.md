@@ -4,6 +4,16 @@
 > **Note:** 你的 `cond.go` 目前是空的;之前 `CondSemaphore` 是 *使用* sync.Cond,不是自刻。
 > Underlying logic: Mesa vs Hoare semantics — signal 後誰先跑 (signaler vs signaled)。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **later(已大致完成)** | **—** | 4.5/10 | 0.7 `std::Condvar` | 0.3 週 | T3 |
+
+> Mesa 變體已實作,完成度高,career 排序低。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 - `Wait()` 必須在 hold lock 時呼叫 — atomic 釋放 lock + 進 wait queue
@@ -173,3 +183,52 @@ func (c *Cond) WaitContext(ctx context.Context) error
 - → `park/` (park/unpark 是底層 — 自刻 cond 必須用 runtime_Semacquire 或 futex)
 - → 一個 lock (任意 lock family member;通常用 sync.Mutex 或自刻 MutexLock)
 - → `memory/` (waiter 入 queue 跟 signal 的 happens-before)
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 3(Composite ★2.4)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★2/5 | Required (entry bar only) | HRT prep: condition variables as baseline topic; rarely a differentiator at Tier-1 HFT |
+| **Crypto** | ★2/5 | Required (CEX) | Matching engine wait-notify patterns; Coinbase/Kraken producer-consumer patterns |
+| **AI Infra** | ★3/5 | Required | Request batch assembler waiting for minimum batch size before dispatch to GPU |
+| **FAANG** | ★3/5 | Advanced | `sync.Cond` is used but often replaced by channels in Go; Java `wait()/notify()` = senior Java interview question |
+| **Dubai** | ★2/5 | Niche | Minor role in Bybit/Binance services |
+| **Composite** | **★2.4/5.0** | **Tier 3** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 本 package 的跨 vertical 共識必要項不多;以下是跨 ≥2 vertical 的基礎信號。
+
+- **Mesa Cond 自刻 + while loop 原因解釋** — 多執行緒 baseline 知識;spurious wakeup / stolen wakeup 三個來源
+  - Evidence: FAANG research — "Understanding condition variables separates senior from mid-level"; AI Infra: batch assembler Cond pattern
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> 這是 Tier 3 package — 主要信號集中在展示正確性推理能力。
+
+- **enqueue-before-unlock ordering** — Wait 必須先 enqueue 再 unlock L;反向是 live-lock 反面教材
+  - Best for: FAANG (demonstrates understanding of atomic lock + park protocol)
+- **Hoare Monitor 對比** — signal 後 signaler vs signaled 誰先執行;教科書 Lampson-Redell 1980
+  - Best for: FAANG PLT interviews (OS/PL background candidates at Google/Meta)
+- **Monitor wrapper** — 把 lock + cond + state 包成一個物件;Java `synchronized` 的 Go 等價
+  - Best for: FAANG (Java Snowflake/Databricks 面試中 synchronized pattern 是 required)
+- **Cond with Timeout** — cleanup race pattern;`sync.Cond` 沒有 timeout API = Russ Cox design note
+  - Best for: AI Infra (batch assembler with deadline; go 的 select + channel 替代方案)
+
+### Recommended Order(本 package 內部)
+
+1. Mesa Cond 自刻(核心 protocol)
+2. Monitor wrapper(易錯 API 包成易用 API)
+3. Cond with Timeout(cleanup race)
+4. Hoare-style 教學文件(選做)
+
+### 對應的 Blog 題材(若想寫)
+
+- "Mesa vs Hoare:為什麼所有現代 OS 選 Mesa,while loop 是必須的"
+- "`sync.Cond` 的三個正確使用 pattern 和三個常見錯誤"

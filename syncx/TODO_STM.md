@@ -4,6 +4,16 @@
 > **Note:** 你的 `stm.go` 目前是空的。
 > Underlying logic: read-set / write-set tracking + version validation + retry on conflict。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **later(換 Rust 寫)** | **1.78** | 7.5/10 | 0.95 Block-STM(Rust) | 4.0 週 | T2(crypto★5) |
+
+> crypto L1 第一名主題,但 Aptos 是 Rust → 認真打 crypto 就直接用 Rust 寫。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 - Transaction 內所有 read 看到一致的 snapshot
@@ -226,3 +236,54 @@ type MVView struct { ... }  // multi-version read view at (txIdx, incarnation)
 - → `memory/` (版本號 ordering, release-acquire on TVar lock)
 - → 可選 `reclamation/` (multi-version data 要 GC)
 - → 跟 `map/` skip list 同樣 ordered DS 知識
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 2(Composite ★2.8,但 Crypto ★5)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★1/5 | Not tested | STM: No evidence in any HFT interview source; HTM (Intel TSX) had some traction but support withdrawn |
+| **Crypto** | ★5/5 | Required at L1 | Block-STM paper (PPoPP 2023) = #1 interview topic at Aptos/Monad/Sei; Aptos JD: "parallel transaction execution and performance engineering" |
+| **AI Infra** | ★3/5 | Advanced | Optimistic concurrency = speculative decoding (accept/reject draft tokens); Hogwild-style async SGD |
+| **FAANG** | ★2/5 | Advanced only | STM links to MVCC in DB interviews (Snowflake/Databricks); not standard FAANG E5 content |
+| **Dubai** | ★3/5 | Advanced | Interesting for blockchain-adjacent roles at Binance/Bybit; VARA compliance-related |
+| **Composite** | **★2.8/5.0** | **Tier 2** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 本 package 在大多數 vertical 不是 Required。以下針對 **Crypto L1** vertical:
+
+- **Optimistic concurrency control (OCC) 概念** — Block-STM = OCC + multi-version data;理解 read-set/write-set + validate + retry
+  - Evidence: [Block-STM paper PPoPP 2023](https://arxiv.org/pdf/2203.06871) — Aptos 160K TPS on single machine; Monad/Sei reference same approach
+- **Version-based conflict detection (TL2)** — 全局 clock + per-TVar version = isolation 基礎
+  - Evidence: [Aptos Labs Block-STM blog](https://medium.com/aptoslabs/block-stm-how-we-execute-over-160k-transactions-per-second-on-the-aptos-blockchain-3b003657e4ba) — Aptos production implementation
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> 針對 Crypto L1 path 的 differentiator — 這個 package 對非 Crypto 路線 ROI 低。
+
+- **Block-STM core** — MultiVersionHashMap + collaborative scheduler;直擊 Aptos/Monad/Sei 面試
+  - Best for: Crypto L1 (Aptos, Monad, Sui, Movement Labs)
+- **MVCC analogy for DB interviews** — STM 的 read snapshot = DB MVCC;解釋 Snowflake/ClickHouse MVCC
+  - Best for: FAANG DB-adjacent (Snowflake, Databricks, PlanetScale)
+- **Speculative execution analogy** — STM retry = speculative decoding reject;optimistic execution pattern
+  - Best for: AI Infra (speculative decoding in vLLM)
+- **NORec** — TL2 簡化版;single global clock;full read-set validation on commit
+  - Best for: 理解 validation 路徑的 tradeoff (教學價值)
+
+### Recommended Order(本 package 內部)
+
+1. Toy TL2(基本 STM:read-set/write-set + global clock)
+2. NORec(TL2 簡化版)
+3. Block-STM core(Crypto L1 直擊)
+4. SwissTM(eager+lazy 混合,選做)
+
+### 對應的 Blog 題材(若想寫)
+
+- "從 TL2 到 Block-STM:樂觀並行執行的 Go 實作"
+- "Block-STM:為什麼 ordering 可以變成 performance blessing"

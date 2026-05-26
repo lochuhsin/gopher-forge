@@ -3,6 +3,16 @@
 > Category 抽象: Hazard Pointer 是 [reclamation](../reclamation/TODO.md) family 的一個 variant。
 > 本 package 專門實作 HP scheme。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **D(6mo·crossbeam cluster)★** | **2.50** | 7.5/10 | 1.0 `crossbeam-epoch` | 3.0(含reclamation) 週 | T2 |
+
+> 無 GC lock-free 回收 = Rust 最硬 signal。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 - Reader 在 deref 前先 `protect(ptr)` — 把指標寫入 own HP slot,加 fence
@@ -109,3 +119,49 @@ HP 的成本不對稱:
 
 - → `memory/` (fence patterns)
 - 被 `queue/`, `stack/`, 可選地 `rcu/` 消費
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 2(Composite ★3.0)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★3/5 | Advanced | ABA problem + reclamation cited as senior HFT topic; Folly HP reference impl; Citadel/HRT "lock-free DS under stress: what fails?" |
+| **Crypto** | ★3/5 | Advanced | Block-STM uses ArcSwap (similar to hazard pointer principle) for safe concurrent access; Firedancer needs safe concurrent memory access patterns |
+| **AI Infra** | ★4/5 | Advanced | Qdrant/Milvus concurrent HNSW graph traversal uses hazard pointer principle; LWN.net HP proposed for Linux kernel 2024 |
+| **FAANG** | ★2/5 | Not tested at E5 | MongoDB + Facebook Folly use HP; signal for Rust/C++ infra specialists at Cloudflare/Discord |
+| **Dubai** | ★3/5 | Advanced | Relevant for HFT-adjacent crypto firms |
+| **Composite** | **★3.0/5.0** | **Tier 2** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 本 package 在 FAANG 標準 E5 loop 不 Required;以下針對 HFT / AI Infra / Crypto 路線:
+
+- **Hazard Pointer announcement protocol** — protect + reload double-check;解釋 ABA + UAF 問題
+  - Evidence: [Maged Michael hazard pointers paper](https://www.cs.otago.ac.nz/cosc440/readings/hazard-pointers.pdf) — foundational for lock-free memory safety; [LWN.net 2024](https://lwn.net/Articles/992704/) — HP proposed for Linux kernel
+- **Integration with queue/ and stack/** — 讓 lock-free DS 升級到 production-grade
+  - Evidence: [quantlabsnet.com HFT interview guide](https://www.quantlabsnet.com/post/how-to-ace-the-hardest-c-interview-questions-in-hft) — "ABA + reclamation = disqualifier for senior roles if you can't discuss it"
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> Tier 2 — 針對 AI Infra (Qdrant/Milvus vector DB) 和 HFT Rust/C++ 路線。
+
+- **Optimized announcement + amortized reclaim** — threshold-based Reclaim 避免 O(N) scan 過於頻繁
+  - Best for: HFT (C++26 `std::hazard_pointer` standard; Folly `hazptr_holder` reference)
+- **Per-domain hazard pointers** — domain 可分 (per-DS) 降低 scan 範圍;降低 cross-DS interference
+  - Best for: AI Infra (concurrent HNSW traversal in Qdrant/Milvus)
+
+### Recommended Order(本 package 內部)
+
+1. Phase 1: global domain + fixed threads + naive scan
+2. Phase 2: dynamic goroutine registration
+3. Phase 3: integrate with Treiber stack stress test
+4. Phase 4: amortized reclaim threshold
+
+### 對應的 Blog 題材(若想寫)
+
+- "ABA problem + hazard pointer:從玩具 lock-free stack 到 production-grade"

@@ -4,6 +4,16 @@
 > **Building-block category** — 不被 application 直接使用,被其他 user-facing category 消費。
 > Underlying logic: 必須證明「沒有任何 thread 還持有對該節點的指標」。三條證明路徑。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **D(6mo·crossbeam cluster)★** | **2.50** | 7.5/10 | 1.0 `crossbeam-epoch` | 3.0(含hazard) 週 | T2 |
+
+> EBR/QSBR,跟 hazard/ 配對做,crossbeam-epoch 對應。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 | 證明路徑 | 機制 | 誰付成本 |
@@ -148,3 +158,49 @@ func Release[T any](cell *drcCell[T])                    // atomic dec; if 0, fr
 
 - → `memory/` (fence patterns)
 - 被 `queue/`, `stack/`, `rcu/` (內部 reclamation), `map/` (lock-free 版本) 消費
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 2(Composite ★3.0)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★3/5 | Advanced | ABA + safe reclamation = senior HFT differentiator; Crossbeam-epoch (Rust) = Two Sigma Rust ecosystem signal |
+| **Crypto** | ★3/5 | Advanced | ArcSwap in aptos-core uses epoch-like semantics; validators have many concurrent readers of state |
+| **AI Infra** | ★4/5 | Advanced | Epoch-based reclamation in high-throughput inference serving; lock-free queue node reclamation in vLLM |
+| **FAANG** | ★2/5 | Not tested at E5 | Crossbeam (Rust) epoch reclamation; Cloudflare/Discord Rust advanced signal |
+| **Dubai** | ★3/5 | Advanced | HFT-adjacent crypto firms (Bybit/OKX) |
+| **Composite** | **★3.0/5.0** | **Tier 2** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 本 package 的跨 vertical 共識必要項集中在 EBR 與 lock-free DS 的配合:
+
+- **EBR (Epoch-Based Reclamation)** — 比 HP 便宜的 reclamation;reader fast path = 2 loads;crossbeam-epoch 是 Rust reference
+  - Evidence: [Keir Fraser PhD 2003](https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-579.pdf) "Practical lock-freedom"; Rust crossbeam-epoch widely used in Crypto/AI Infra (Tokio, Jito)
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> 在 **1-2 個 vertical** 是 differentiator — 特別是 AI Infra / HFT Rust 路線。
+
+- **QSBR (Quiescent-State Based)** — zero cost in critical section;適合 long read path;Linux kernel RCU variant
+  - Best for: AI Infra (vLLM long decode steps = long critical sections; QSBR reduces overhead)
+- **Hybrid schemes (IBR)** — HP + EBR;bounded reclamation + low reader cost
+  - Best for: HFT (precise memory control required)
+- **EBR vs QSBR tradeoff** — EBR stuck-thread = unbounded memory;QSBR requires safe point discipline
+  - Best for: All — demonstrating nuanced knowledge of tradeoffs is a strong senior differentiator
+
+### Recommended Order(本 package 內部)
+
+1. EBR(接 M&S queue, 對比 hazard/)
+2. QSBR(與 rcu/ 共生)
+3. DRC(shared_ptr 互通,選做)
+4. IBR(paper-level,進階)
+
+### 對應的 Blog 題材(若想寫)
+
+- "EBR vs HP vs QSBR:三種 lock-free memory reclamation 的工程 tradeoff"

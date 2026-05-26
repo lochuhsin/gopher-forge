@@ -2,6 +2,16 @@
 
 > **Building-block category** — 所有 sleeping sync primitive 的底層。Mutex (sleeping), Cond, Semaphore (waiter queue), CountDownLatch 都靠這個。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **D(6mo·crossbeam cluster)★** | **4.33** | 6.5/10 | 1.0 `parking_lot_core`/tokio | 1.5 週 | T3 |
+
+> tokio runtime 地基;park/unpark = Rust async 底層。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 - 「Atomic check + sleep」是 racy 的關鍵 — 必須是 *單一 syscall* 同時做這兩件事,不然喚醒會丟
@@ -132,3 +142,49 @@ func (p *PermitParker) Unpark()
 
 - 沒有上游 — 是 sync primitive 的最底層
 - 被 `syncx/lock.go` (MutexLock), `syncx/cond.go`, `syncx/semaphore.go`, `syncx/latch.go`, `syncx/future.go` 消費
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 3(Composite ★2.6)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★2/5 | Advanced | C++20 `atomic::wait/notify` is futex-based; HFT rarely asks park directly but futex internals matter |
+| **Crypto** | ★3/5 | Advanced | Tokio (used by Kraken, Helius) is built on async task parking; Block-STM uses ABORTED markers instead of parking (deliberate design choice) |
+| **AI Infra** | ★3/5 | Advanced | Thread parking underlies efficient GPU worker idle behavior in vLLM; `rpc_broadcast_mq.dequeue` is a park-like pattern |
+| **FAANG** | ★2/5 | Advanced (JVM) | Java `LockSupport.park/unpark` underlies `ReentrantLock` and AQS; senior Java topic at Snowflake/Databricks |
+| **Dubai** | ★3/5 | Advanced | Relevant for Bybit/OKX matching engine efficiency |
+| **Composite** | **★2.6/5.0** | **Tier 3** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 本 package 沒有跨 vertical 共識必要項;進階信號為主。以下針對特定 vertical:
+
+- **park/unpark interface** — 理解 sleeping sync primitive 的最底層;避免 wake-before-park race
+  - Evidence: Crypto research — "park/unpark vs busy-wait is architectural knowledge"; Block-STM deliberately avoids parking transactions
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> Tier 3 — 主要 signal 是展示 Go runtime / Java AQS / Linux futex 深度知識。
+
+- **runtime.Semacquire 接法** — Go linkname approach;解釋 Go gopark vs Linux futex 的區別
+  - Best for: FAANG (Go runtime depth; goroutine vs OS thread park mechanics)
+- **自刻 futex wrapper (Linux build tag)** — 直接 futex syscall;3-state mutex 的省 syscall 技巧
+  - Best for: HFT (Linux-only; Drepper "Futexes Are Tricky" cited at HRT/Citadel)
+- **Permit-style Parker (Java LockSupport 對照)** — unpark 預發 permit;AQS CLH queue 底層
+  - Best for: FAANG Java (Snowflake/Databricks AQS internals; ReentrantLock is park/unpark + CLH)
+
+### Recommended Order(本 package 內部)
+
+1. linkname wrapper Parker(基於現有 lock.go 的 runtime_SemacquireMutex)
+2. 補完 syncx/lock.go MutexLock skeleton(用 Parker)
+3. Linux only: raw futex + FutexMutex demo
+4. Permit-style Parker(Java AQS 對照)
+
+### 對應的 Blog 題材(若想寫)
+
+- "Go goroutine park vs Linux futex:為什麼 Go 不直接用 FUTEX_WAIT"

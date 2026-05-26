@@ -4,6 +4,16 @@
 > **Note:** 你的 `latch.go` 目前是空的,整個 category 待補。
 > Underlying logic: 從 0→1 的單向狀態轉移 + waiter wake-up policy。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **A(3mo·廉價完成)** | **7.70** | 5.5/10 | 0.7 tokio | 0.5 週 | T1 |
+
+> WaitGroup 已實作;補 CountDownLatch 一次性閘門。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 - State 從 "未觸發" → "已觸發" 的單向轉移 (one-shot variants)
@@ -188,3 +198,55 @@ func (n *Notify) Notified() (waiter, await func())  // 兩階段 API
 - → `park/` (Wait 必須 park 不能 spin;`runtime_Semacquire` wrapper)
 - → `memory/` (Set 是 release, Wait 是 acquire)
 - 跟 `syncx/future_TODO.md` 概念近 — Future 是 set-value latch
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 1(Composite ★3.4)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★3/5 | Required (WaitGroup) | Two Sigma Rust async framework uses structured concurrency; fork-join for parallel backtesting |
+| **Crypto** | ★3/5 | Required | "Appears in every concurrent crypto service" (Latch/WaitGroup); Chainlink OCR async oracle aggregation uses latch-like coordination |
+| **AI Infra** | ★3/5 | Required | WaitGroup/Latch for distributed barrier before checkpoint; all workers must sync before saving state |
+| **FAANG** | ★5/5 | Required | `sync.WaitGroup` = THE most commonly used Go concurrency primitive; Java `CountDownLatch` = required senior Java |
+| **Dubai** | ★3/5 | Required | Common in async coordination at Bybit/Binance Go services |
+| **Composite** | **★3.4/5.0** | **Tier 1** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 在 **≥2 個 vertical** 被列為 Required,或 composite ≥ 3.4。
+
+- **WaitGroup(自刻教學版)** — Go 面試第一個並發原語;64-bit state packing technique 是 senior 必答
+  - Evidence: [FAANG research](../docs/research/faang.md) — ★★★★★ at FAANG; "sync.WaitGroup is THE most commonly used Go concurrency primitive"
+- **CountDownLatch** — Java 面試標配;C++20 `std::latch` 對照;one-shot gate 概念
+  - Evidence: [onsites.fyi Amazon SDE3 guide](https://www.onsites.fyi/blog/article/amazon-sde-iii-software-engineer-interview-questions) — Java CountDownLatch cited; FAANG ★★★★★
+- **ManualResetEvent** — "server ready" startup pattern;Python `threading.Event` 對照
+  - Evidence: AI Infra research — training workers use ManualResetEvent-style coordination for checkpoint sync
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> 在 **1-2 個 vertical** 是 differentiator,或 composite < 3.4 但有特定 vertical 看重。
+
+- **AutoResetEvent** — binary semaphore 語義;Windows/.NET 面試對比教學;producer-consumer handoff
+  - Best for: FAANG Java/C# interviews (Snowflake/Databricks)
+- **Notify (tokio-style)** — permit semantics;Rust async 面試對照;wake-before-wait race 解法
+  - Best for: Crypto/AI Infra (Rust-heavy shops: Jito, Helius, vLLM)
+- **Pulse (edge-triggered)** — 反面教材;.NET `Monitor.Pulse` 漏喚醒場景
+  - Best for: 教學用 — 展示正確 vs 錯誤 wake-on-set design
+
+### Recommended Order(本 package 內部)
+
+1. CountDownLatch(最容易,入門)
+2. WaitGroup 自刻版(64-bit state packing,Go source 對照)
+3. ManualResetEvent + AutoResetEvent(概念對立一組)
+4. Notify(tokio-style permit semantics)
+5. Pulse(教學反面教材)
+
+### 對應的 Blog 題材(若想寫)
+
+- "sync.WaitGroup 原始碼解析:64-bit state packing 的 CAS 技巧"
+- "CountDownLatch vs WaitGroup:Java 跟 Go 的 fork-join 慣用法"

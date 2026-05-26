@@ -3,6 +3,16 @@
 > Category 抽象: Reader 零成本 (沒有 atomic, 沒有 fence on x86),Writer 走 copy-on-write + 等所有 in-flight reader 結束 (grace period) 才 free 舊版本。
 > Underlying logic: 把同步成本從 reader 轉嫁到 writer + reclamation 路徑。RCU **不是 lock**,是 publication protocol。
 
+## 🎯 Priority(Dubai-focused)
+
+| Dubai Phase | ROI | V_dubai | R_corr | 剩餘工時 | 全球 Tier |
+|---|---|---|---|---|---|
+| **later(6mo+)** | **2.93** | 6.5/10 | 0.9 `arc-swap`/`left-right` | 2.0 週 | T2 |
+
+> RCULock 基礎已實作;完整版 read-heavy lock-free。 完整排序見 [ROADMAP.md](../ROADMAP.md)。
+
+---
+
 ## 核心 invariant
 
 - Reader: `rcu_read_lock()` ... `rcu_dereference(ptr)` ... `rcu_read_unlock()` — **沒有任何 atomic on x86**
@@ -125,3 +135,51 @@ Go runtime 對 goroutine preemption 是 cooperative (function preamble check + a
 - → `memory/` (release/acquire 配對是 RCU 核心)
 - 可選 → `reclamation/qsbr.go` (RCU 內部也可以用 EBR 來實作 grace period 偵測)
 - 取代 `syncx/lock.go` 的 RCULock skeleton
+
+---
+
+## Career Signal (Cross-Vertical Research)
+
+> 來源:`docs/research/{hft,crypto,ai_infra,faang,dubai}.md`(250+ sources 聚合)。對應 [ROADMAP.md](../ROADMAP.md) **Tier 2(Composite ★3.0)**。
+
+### Scoring Matrix
+
+| Vertical | Rating | Tier | Top Evidence |
+|----------|--------|------|--------------|
+| **HFT** | ★3/5 | Advanced | Linux kernel background; DPDK RCU-based routing table; rare but differentiating |
+| **Crypto** | ★3/5 | Advanced | Firedancer C code uses RCU-style patterns from Linux systems background; validator config hot-reload |
+| **AI Infra** | ★4/5 | Advanced | vLLM prefix cache hash map uses RCU-style (readers don't lock; writers swap atomically); Qdrant HNSW segment updates |
+| **FAANG** | ★2/5 | Not tested at E5 | Linux RCU (McKenney LWN articles); relevant for SRE/kernel engineers |
+| **Dubai** | ★3/5 | Advanced | Relevant for validator/staking infra at G42/Core42 |
+| **Composite** | **★3.0/5.0** | **Tier 2** | — |
+
+### 必要(Required for senior infra interviews)
+
+> 本 package 的跨 vertical 共識必要項針對 AI Infra / systems 路線:
+
+- **Classic RCU read/write paths** — reader zero-cost (no atomic on x86);writer copy-on-write + grace period
+  - Evidence: [AI Infra research](../docs/research/ai_infra.md) — RCU-style patterns directly used in vLLM prefix cache (readers don't block, writers swap atomically)
+- **URCU (userspace) Go port** — publication protocol 的最純粹示範;config hot-reload use case
+  - Evidence: Crypto research — Firedancer/Solana validator gossip table (read >> write); service discovery snapshot
+
+### 進階(Advanced / Senior-to-Staff Differentiator)
+
+> 在 **1-2 個 vertical** 是 differentiator。
+
+- **SRCU (Sleepable RCU)** — 允許 reader critical section 內 sleep;per-domain epoch
+  - Best for: AI Infra (vLLM decode steps can be long; SRCU appropriate for long critical sections)
+- **Preemptible RCU** — 說明 Go 的 cooperative preemption 為何需要不同 grace period 機制
+  - Best for: FAANG PLT / systems depth (Go runtime internals; why Linux Classic RCU ≠ Go)
+- **RCU vs EBR vs HP 對比** — 三種 reclamation 的 reader cost 對比是面試 differentiator
+  - Best for: All systems verticals
+
+### Recommended Order(本 package 內部)
+
+1. URCU Go port(主要實作)
+2. SRCU(URCU 之上加 sleepable)
+3. QSBR variant(與 reclamation/ 共用)
+4. Classic Linux RCU 文件解釋
+
+### 對應的 Blog 題材(若想寫)
+
+- "RCU in Go:從 Linux kernel publication protocol 到 vLLM prefix cache 的 read-copy-update"
