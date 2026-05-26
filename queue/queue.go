@@ -18,3 +18,5 @@ type slot[T any] struct {
 	val T
 	_   [112]byte
 }
+
+//TODO: SPSC queue + LMAX Disruptor

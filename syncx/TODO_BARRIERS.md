@@ -143,6 +143,37 @@
 
 ---
 
+## H. 對應 AI infra (NCCL collective ops)
+
+> 這張表是 barrier family 對你 AI infra target 最直接的 signal:
+
+| Barrier variant | 對應 NCCL op | 為什麼相似 |
+|---|---|---|
+| StaticTree / Combining | tree allreduce | 都是 up-tree 聚合 + down-tree 廣播 |
+| Tournament | tournament reduction | 預先靜態決定 winner,binary 兩兩淘汰 |
+| Dissemination | recursive doubling allreduce | log N rounds,沒有 root |
+| Butterfly | butterfly allreduce | dissemination 的 power-of-2 子集,pairwise |
+| Hierarchical | NCCL multi-node ring+tree hybrid | socket-local tree → cross-socket |
+
+寫一篇 blog "Demystifying NCCL via Barrier Theory" 直接對應這張表 → 對 NVIDIA NCCL team / Anthropic / OpenAI training infra 是極稀有 signal (purpose doc ★★★★★)。
+
+---
+
+## I. Career signal
+
+- **AI infra:** 完成 tree + dissemination + 寫 NCCL 對照 blog = differentiator (purpose doc 標 ★★★★★)
+- **HPC / kernel:** Hierarchical NUMA-aware barrier = HPC scheduler / Linux infra signal
+- **Java concurrency:** 補 Phaser = Doug Lea JSR-166 系統知識
+- **跨語言 senior:** 講得清 dissemination 為什麼能 log N rounds 解決同步 (每 round "知道誰到了" 的 set 翻倍) = 很稀有的內容
+
+---
+
+## J. Dependencies
+
+- → `memory/` (release-acquire on sense bits, flag publication)
+- 不需要 reclamation (barrier 不分配/釋放節點,full lifetime)
+- 跟 §G (latch family) 鄰近 — 參考 `TODO_LATCH.md`
+
 ## G. 鄰近家族: Latch / Completion (不是 barrier,但常被混為一談)
 
 > 共同特徵: **signaler 不 block**,只有 waiter block。本節列出來是因為它們常和 barrier 一起被討論,也建議一起實作(API 簡單,且 CyclicBarrier 內部可以用 latch 思路理解)。
