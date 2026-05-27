@@ -79,14 +79,6 @@ func (t *TicketLock) Unlock() {
 	t.serving.Add(1)
 }
 
-type SeqLock struct{}
-
-func (s *SeqLock) Lock() {
-}
-
-func (s *SeqLock) Unlock() {
-}
-
 // MCSLock is a queue-based FIFO spinlock (Mellor-Crummey & Scott, 1991).
 // Contenders enqueue a node onto a lock-free linked list and spin on a flag
 // local to their own node, so each waiter's spin variable lives on a cache
@@ -189,4 +181,56 @@ func (r *RWMutexLock) RLock() {
 
 func (r *RWMutexLock) RUnlock() {
 	r.mu.RUnlock()
+}
+
+// SeqLock is an optimistic reader-writer synchronization primitive: writers
+// bracket their critical section with seq +1 (even→odd→even), and readers
+// snapshot the seq, do their reads, then re-check that seq hasn't changed.
+//
+// The sequence counter encodes lock state via parity (even = no writer
+// active, odd = writer in progress) and version (every write produces a
+// unique seq value), letting readers detect any concurrent write without
+// acquiring any lock.
+//
+// This is the L1 minimum version: caller must ensure single writer. For
+// multi-writer scenarios, wrap WriteLock/WriteUnlock with an external mutex.
+//
+// Pros:
+//   - Readers never block writers; writers never block readers. Both paths
+//     have deterministic latency floors (no syscall, no scheduling).
+//   - Reader's hot path is two atomic Loads + value copy — no CAS, no
+//     cache-line bouncing. Cache line stays in Shared state across readers.
+//   - Perfect for read-heavy, writer-rare workloads with pure-value data
+//     (HFT market data quotes, Linux gettimeofday, in-memory config).
+//
+// Cons:
+//   - Reader may retry under writer contention; livelock theoretically
+//     possible if writer never drains (rare in practice).
+//   - Snapshot consistency only — not memory safety. Data containing
+//     pointers, slices, or maps can leak inconsistent state to reader
+//     before validation catches it. Restrict to pure-value (Copy-style)
+//     data.
+//   - This minimal version assumes a single writer; concurrent WriteLock
+//     calls will corrupt the seq parity.
+
+type SeqLock struct {
+	seq atomic.Uint64
+}
+
+func (s *SeqLock) WriteLock() {
+	s.seq.Add(1)
+}
+
+func (s *SeqLock) WriteUnlock() {
+	s.seq.Add(1)
+}
+
+func (s *SeqLock) ReadBegin() uint64 {
+	return s.seq.Load()
+}
+
+// make sure that the start value is always an even number (meaning that we didn't catch a write mid-way through)
+// if the end value is even, it means that we didn't catch a write mid-way through
+func (s *SeqLock) ReadValidate(start uint64) bool {
+	return (start&1) == 0 && s.seq.Load() == start
 }
