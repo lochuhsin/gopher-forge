@@ -1,4 +1,4 @@
-# gopher-forge ROADMAP — Index-Driven Rust/Go High-Performance Plan
+# gopher-forge ROADMAP — Spiral Rust/Go High-Performance Plan
 
 > Target: high-salary, high-moat Rust/Go infrastructure roles: HFT, market
 > making, exchange core, crypto infrastructure, FAANG/top-tier infra, AI/agent
@@ -19,15 +19,40 @@ Use these documents as the current system map:
 - Verification: `_lab/verify/Index.md`
 - Niche/deep tracks: `arena/Index.md`, `clock/Index.md`, `crdt/Index.md`, `_lab/excercise/Index.md`
 
-External market calibration:
+Local market calibration:
 
 - `docs/research/high_performance_findings_2026-05-27.md`
 - `docs/research/high_performance_source_catalog_2026-05-27.tsv`
+- `docs/research/hft.md`
+- `docs/research/crypto.md`
+- `docs/research/ai_infra.md`
+- `docs/research/faang.md`
+- `docs/research/dubai.md`
+- `docs/purpose/syncx_career_value.md`
+
+External web calibration used for this version:
+
+- Go memory model: Go atomics synchronize and behave as sequentially consistent operations.
+  <https://go.dev/ref/mem>
+- Coinbase market-data architecture: Go channel fan-out was replaced with an
+  LMAX-style ring buffer to reduce allocation and latency.
+  <https://www.coinbase.com/blog/Optimizing-Producer-Consumer-Architecture-for-Market-Data-at-Coinbase>
+- LMAX Disruptor: ring buffer, sequence, sequence barrier, and consumer dependency graph.
+  <https://lmax-exchange.github.io/disruptor/user-guide/>
+- NVIDIA NCCL: ring, tree, and double-binary-tree collective communication algorithms.
+  <https://developer.nvidia.com/blog/massively-scale-deep-learning-training-nccl-2-4/>
+- Kubernetes GPU scheduling: device plugins and Dynamic Resource Allocation for
+  GPU/cloud control-plane work.
+  <https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus>
+  <https://kueue.sigs.k8s.io/docs/concepts/dynamic_resource_allocation/>
+- Cloudflare Pingora: Rust async multithreaded high-performance network service framework.
+  <https://blog.cloudflare.com/pingora-open-source/>
 
 ## 1. Strategy
 
-The highest-return path is not to implement every primitive. The highest-return
-path is to build a chain of artifacts that a performance interviewer can inspect:
+The highest-return path is not to implement every primitive deeply on the first
+pass. The highest-return path is to build a chain of artifacts that a performance
+interviewer can inspect:
 
 ```text
 memory model -> SPSC ring -> p99 benchmark report -> Disruptor / ThreadPerCore
@@ -64,7 +89,42 @@ Sort rule:
 4. Use `I` to avoid beautiful but rarely asked topics too early.
 5. Only then consider implementation effort.
 
-## 3. Current State From Index
+## 3. Spiral Execution Model
+
+Run the repo in spirals, not as one deep linear tunnel.
+
+```text
+Phase 1: Core pass
+  Touch every important package once.
+  Build the smallest useful primitive or executable example.
+  Goal: vocabulary, API shape, tests, and mental model.
+
+Phase 2: Proof / benchmark / composition pass
+  Revisit the same packages.
+  Add correctness tools, stress tests, p99 reports, and pattern composition.
+  Goal: make claims falsifiable and measurable.
+
+Phase 3: Deep / portfolio pass
+  Revisit again.
+  Add reclamation, Rust proof, exchange/streaming/database/AI labs.
+  Goal: create interview-grade artifacts.
+```
+
+This prevents two bad outcomes:
+
+- getting stuck polishing one primitive while the rest of the mental model is missing;
+- building flashy portfolio demos before the primitive correctness layer exists.
+
+Current active learning slice:
+
+```text
+SPSC implementation
+-> memory-focused explanation: publication, linearization, progress, false sharing
+-> SPSC tests and p99 benchmark
+-> LMAX Disruptor minimum
+```
+
+## 4. Current State From Index
 
 Already useful:
 
@@ -75,511 +135,330 @@ Already useful:
 Highest-value gaps:
 
 - `memory/Index.md`: most items are planned; this is the upstream correctness layer.
-- `queue/Index.md`: `LockFreeSPSC` is scaffold; `LamportSPSCRing`, `LMAXDisruptor`, `MulticastRingBuffer` are planned.
+- `queue/Index.md`: `LockFreeSPSC` / `LamportSPSCRing`, `LMAXDisruptor`, and `MulticastRingBuffer` drive the low-latency path.
 - `_lab/verify/Index.md`: no checker/harness layer yet; benchmarks and correctness claims need this.
-- `_lab/pattern/Index.md`: `Disruptor`, `ThreadPerCore`, `PipelineBackpressure`, `BackpressurePolicyMatrix` are planned.
-- Rust proof is missing from the repo structure; add it as a small companion after Go SPSC.
+- `_lab/pattern/Index.md`: `Disruptor`, `ThreadPerCore`, `PipelineBackpressure`, and `BackpressurePolicyMatrix` compose primitives into architecture.
+- Rust proof is missing from the repo structure; add it after Go SPSC and memory notes.
 - `hazard/`, `reclamation/`, `rcu/`: planned; needed for deep Rust/HFT/DB credibility.
 
-## 4. Dependency Graph
+## 5. Dependency Graph
 
-```text
-memory/
-  -> queue/ SPSC, MPSC, MPMC, Michael-Scott
-  -> stack/ Treiber ABA/reclamation work
-  -> syncx/ MutexLock, condvars, futures, barriers
-  -> hazard/, reclamation/, rcu/
-  -> map/ lock-free and RCU variants
-  -> deque/ Chase-Lev
+```mermaid
+flowchart TD
+  memory["memory/\nordering, publication, progress, ABA"]
+  syncx["syncx/\nlocks, condvars, semaphores, barriers, futures"]
+  park["park/\npark/unpark, futex-style wait, wakers"]
 
-queue/ + syncx/ + scope/
-  -> _lab/pattern/ Disruptor, PipelineBackpressure, ThreadPerCore
-  -> actor/ bounded mailbox and scheduler
-  -> parallel/ pipeline and work stealing
+  queue["queue/\nSPSC, MPSC, MPMC, Disruptor, Michael-Scott"]
+  stack["stack/\nTreiber, elimination, ABA experiments"]
+  mapPkg["map/\nsharded, LRU, COW, lock-free maps"]
+  deque["deque/\nChase-Lev, work stealing"]
 
-hazard/ or reclamation/
-  -> stack/ TreiberWithHazardPointers
-  -> queue/ MichaelScottQueue
-  -> map/ lock-free maps
+  verify["_lab/verify/\nhistory, race, linearizability, litmus"]
+  patterns["_lab/pattern/\nDisruptor, backpressure, ThreadPerCore"]
+  scope["scope/\ncancellation, task groups, deadlines"]
+  actor["actor/\nmailbox, actor ref, ask, supervisor"]
+  parallel["parallel/\nmap/reduce/scan, pipeline, AllReduce"]
+  ratelimit["ratelimit/\ntoken bucket, GCRA, breakers, shedding"]
 
-_lab/verify/
-  -> every package that claims lock-free, wait-free, linearizable, fair, or race-free behavior
+  hazard["hazard/\nhazard records, holders, retire scans"]
+  reclamation["reclamation/\nEBR, QSBR, limbo bags"]
+  rcu["rcu/\nread sections, publish, grace periods"]
+  arena["arena/\nbump, slabs, thread-local pools"]
+
+  clock["clock/\nLamport, vector, HLC"]
+  crdt["crdt/\nGCounter, ORSet, LWW, delta state"]
+  exercise["_lab/excercise/\nclassic concurrency drills"]
+
+  memory --> syncx
+  memory --> queue
+  memory --> stack
+  memory --> mapPkg
+  memory --> deque
+  memory --> hazard
+  memory --> reclamation
+  memory --> rcu
+
+  park --> syncx
+  syncx --> queue
+  syncx --> patterns
+  syncx --> scope
+  syncx --> ratelimit
+
+  queue --> patterns
+  queue --> actor
+  queue --> parallel
+  queue --> ratelimit
+
+  scope --> actor
+  scope --> parallel
+  scope --> patterns
+  actor --> patterns
+  deque --> parallel
+
+  hazard --> stack
+  hazard --> queue
+  hazard --> mapPkg
+  reclamation --> stack
+  reclamation --> queue
+  reclamation --> mapPkg
+  reclamation --> rcu
+  rcu --> mapPkg
+
+  arena --> queue
+  arena --> actor
+  arena --> parallel
+
+  clock --> verify
+  clock --> crdt
+  crdt --> patterns
+
+  verify -. validates .-> memory
+  verify -. validates .-> syncx
+  verify -. validates .-> queue
+  verify -. validates .-> stack
+  verify -. validates .-> mapPkg
+  verify -. validates .-> actor
+  verify -. validates .-> parallel
+
+  exercise -. drills .-> syncx
+  exercise -. drills .-> queue
 ```
 
-## 5. Phase 1 — Performance Correctness Foundation
+## 6. Package Roadmap: Phase 1 Core Pass
 
-Goal: make the repo credible before adding more primitives.
+Phase 1 runs across the repo once. Each package should produce one small,
+inspectable artifact or a deliberate scaffold with tests where appropriate.
 
-### 5.1 `memory/Index.md`
+| Package | Phase 1 items | Mental model trained | Why now |
+|---|---|---|---|
+| `memory/` | `AtomicLoadStore`, `CompareAndSwap`, `FetchAddCounter`, `AcquireReleasePairing`, `PublicationSafety` | Visibility, ownership, publication, single-location atomicity | Upstream of every lock-free or wait-free claim |
+| `syncx/` | `Once`, `OnceValue`, `MesaQueueCond`, finish `MutexLock` scaffold, `WeightedSemaphore` | State machines, lost wakeups, publication, parking vs spinning | Covers senior interview floor and unlocks blocking queues |
+| `park/` | `Parker`, `PermitParker`, `SpuriousWakeupContract` | Register-before-sleep, wake-one vs broadcast, lost wakeups | Needed before custom sleeping primitives become credible |
+| `queue/` | `LamportSPSCRing`, finish `LockFreeSPSC`, SPSC tests, `BlockingBoundedQueue` baseline | FIFO, producer/consumer ownership, full/empty, backpressure | Highest shared signal for HFT, exchange, streaming, AI inference |
+| `stack/` | `TreiberABAExperiment`, invariants for existing Treiber stack | CAS loops, ABA, linearization point | Bridges current stack code to memory/reclamation learning |
+| `map/` | `ShardedMutexMap`, `ThreadSafeLRU` | Sharding, lock striping, recency mutation on reads | FAANG/top-tier interview floor |
+| `deque/` | `MutexDeque`, `BoundedRingDeque` | Double-ended ownership, baseline before Chase-Lev | Prepares work stealing without weak-memory complexity |
+| `ratelimit/` | `TokenBucket`, `SlidingWindowCounter`, `Bulkhead` | Admission control, local counters, bounded concurrency | Direct interview utility for FAANG, Dubai, fintech, inference |
+| `scope/` | `CancellationToken`, `ErrGroupClone`, `TaskGroup` | Goroutine lifetime ownership and failure propagation | Required Go senior mental model |
+| `actor/` | `Mailbox`, `ActorInterface`, `ActorRef`, minimal `AskPattern` | Isolated state, message ownership, request/reply | Prepares AI/agent runtime and actor-based systems |
+| `parallel/` | `ParallelMap`, `ParallelFor`, `WorkerPool`, `ParallelReduce` | Work/span, partitioning, synchronization points | Prepares scan, pipeline, AllReduce, and work stealing |
+| `_lab/verify/` | `HistoryRecorder`, `RaceDetectorHarness`, simple `RandomizedSchedulerHarness` | Correctness as workload, not intuition | Needed to falsify broken primitives |
+| `_lab/pattern/` | `MonitorObject`, `ShareByCommunicating`, minimal `PipelineBackpressure` | Primitive composition, bounded stages, shutdown policy | Turns primitives into architecture vocabulary |
+| `hazard/` | `Domain`, `HazardRecord`, `Holder` API sketch and tests for ownership rules | Announce-before-dereference | Prepare Treiber/Michael-Scott upgrades |
+| `reclamation/` | `ReclamationDomain`, `EBRGuard`, `LimboBags` scaffold | Reader epochs, deferred destruction | Prepare lock-free linked structures |
+| `rcu/` | `RCUReadSection`, `AssignPointer`, `Dereference` toy implementation | Read-mostly publish/snapshot model | Prepare COW/RCU maps and read-mostly routing tables |
+| `arena/` | `BumpAllocator`, `ResettableRegion`, `AllocationBenchmarkSuite` baseline | Lifetime region and allocation jitter | Useful for HFT/database/AI memory stories |
+| `clock/` | `LamportClock`, `VectorClock`, `ManualClock` | Causal order and deterministic time | Foundation for distributed-system reasoning and verify tools |
+| `crdt/` | `GCounter`, `PNCounter`, `GSet`, `LWWRegister` | Monotonic merge and convergence | Minimal distributed-state pass without going niche too early |
+| `_lab/excercise/` | `PrintInOrder`, `ProducerConsumerBoundedBuffer`, `DiningPhilosophers` | Interview drill vocabulary | Practice only; do not let this drive the roadmap |
 
-Implement first:
+Phase 1 deliverable rule:
 
-- `AtomicLoadStore`
-- `CompareAndSwap`
-- `FetchAddCounter`
-- `AtomicExchange`
-- `HappensBeforeGraph`
-- `AcquireReleasePairing`
-- `SeqCstOrdering`
-- `DataRaceAndDRFSC`
-- `FalseSharing`
-- `PublicationSafety`
-- `ProgressGuarantees`
-- `LinearizationPoint`
-- `ABAProblem`
-- `LitmusTests`
+- one focused test file per implemented item;
+- a short invariant comment or note for every concurrent primitive;
+- no claim of production-grade behavior;
+- no advanced lock-free map or Michael-Scott queue before reclamation exists.
 
-Why:
+## 7. Package Roadmap: Phase 2 Proof / Benchmark / Composition Pass
 
-- This is the vocabulary for every Rust/Go high-performance interview.
-- It unlocks `queue/`, `stack/`, `hazard/`, `reclamation/`, `rcu/`, `deque/`, and lock-free `map/`.
+Phase 2 revisits the same packages and asks: can this claim be falsified,
+benchmarked, or composed into a recognizable system?
 
-Deliverables:
+| Package | Phase 2 items | Proof / benchmark / composition target |
+|---|---|---|
+| `memory/` | `FalseSharing`, `ProgressGuarantees`, `LinearizationPoint`, `ABAProblem`, `LitmusTests` | SPSC and Treiber explanation notes; litmus examples; false-sharing benchmark |
+| `syncx/` | `TTASLock`, `BackoffSpinLock`, `FairSemaphore`, `TimeoutSemaphore`, `CyclicBarrier`, `BarrierAction` | spin/ticket/MCS/TTAS benchmark; semaphore fairness/starvation tests; cond lost-wakeup tests |
+| `park/` | `WaiterQueue`, `TimeoutPark`, `WakerRegistration` | cancellation-safe wait queues and wakeup-race tests |
+| `queue/` | SPSC/channel/MPSC/MPMC p99 benchmark, `LMAXDisruptor`, `MulticastRingBuffer`, `LaggingReceiverPolicy` | p50/p95/p99 report; slow-consumer policy matrix; channel allocation comparison |
+| `stack/` | `EliminationArray`, `TreiberWithTaggedPointer`, bug-catching tests | ABA demonstration and elimination-backoff contention benchmark |
+| `map/` | `StripedRWMutexMap`, `SyncMapClone`, `CopyOnWriteMap` | read-heavy vs write-heavy benchmark; weak iteration and snapshot semantics |
+| `deque/` | `ChaseLevDeque`, `StealPolicyExperiments` | owner-fast/thief-CAS model and work-stealing stress tests |
+| `ratelimit/` | `GCRA`, `CircuitBreaker`, `LoadShedding`, `QueueDepthBackpressure` | overload policy benchmark and failure-domain demo |
+| `scope/` | `TokenTree`, `BoundedTaskGroup`, `DeadlineScheduler`, `CooperativeCancellationBenchmark` | cancellation propagation and bounded concurrency under deadlines |
+| `actor/` | `BoundedMailbox`, `RequestReplyCorrelation`, `Supervisor`, `GracefulShutdown` | mailbox overflow, late replies, shutdown order |
+| `parallel/` | `ParallelScanHillisSteele`, `ParallelScanBlelloch`, `PipelineWithBackpressure`, `AllReduceRing`, `AllReduceTree` | work/span notes and NCCL-style ring vs tree comparison |
+| `_lab/verify/` | `LinearizabilityChecker`, `PropertyBasedConcurrentRunner`, `FairnessStarvationChecker`, `LitmusRunner` | deliberately broken queue/stack/lock cases caught by harnesses |
+| `_lab/pattern/` | `Disruptor`, `BackpressurePolicyMatrix`, `ThreadPerCore`, `HalfSyncHalfAsync` | runnable market-data or streaming examples with overload policy |
+| `hazard/` | `ProtectReloadLoop`, `ResetProtection`, `RetireList`, `ScanAndReclaim` | hazard pointer protocol tests and Treiber integration prep |
+| `reclamation/` | `TryAdvanceEpoch`, `StalledParticipantDetection`, `QSBR`, `ReclamationStressHarness` | stalled reader and delayed reclamation stress cases |
+| `rcu/` | `SynchronizeRCU`, `QSBRRCU`, `RCUCorrectnessTests` | grace-period tests and read-mostly benchmark |
+| `arena/` | `TypedArena`, `ThreadLocalArena`, `SlabAllocator` | allocation jitter and per-worker allocation benchmark |
+| `clock/` | `HybridLogicalClock`, `VersionVector`, `ClockSkewSimulator` | ordering under skew and distributed-system interview examples |
+| `crdt/` | `ORSet`, `LWWMap`, `ORMap`, `CRDTAlgebraPropertyTests` | associativity/commutativity/idempotence property tests |
+| `_lab/excercise/` | `ReadersWriters`, `RendezvousAndMultiplex`, `H2OBuilder`, `StarvationAndLivelockLabs` | targeted practice after the real packages have coverage |
 
-- executable examples, not only prose;
-- broken examples where useful;
-- `docs/notes/memory-model.md`;
-- links to `_lab/verify/LitmusRunner` once that exists.
+Phase 2 deliverable rule:
 
-### 5.2 `_lab/verify/Index.md`
+- benchmark when performance is part of the claim;
+- at least one broken variant or adversarial test for each checker;
+- explicit overflow, shutdown, fairness, and cancellation policy for composed patterns.
 
-Implement early:
+## 8. Package Roadmap: Phase 3 Deep / Portfolio Pass
 
-- `HistoryRecorder`
-- `RandomizedSchedulerHarness`
-- `PropertyBasedConcurrentRunner`
-- `RaceDetectorHarness`
-- `LitmusRunner`
-- `FairnessStarvationChecker`
+Phase 3 builds the high-moat artifacts that map directly to target verticals.
 
-Defer:
+| Package | Phase 3 items | Portfolio target |
+|---|---|---|
+| `memory/` | `AtomicRefcount`, `TaggedVersionedPointers`, `FenceCheatsheet`, Rust ordering comparison | Rust `Arc<T>` and Rust SPSC safety proof |
+| `syncx/` | `CombiningTreeBarrier`, `TournamentBarrier`, `DisseminationBarrier`, `Phaser`, `FuturePromise`, `CancellableFuture`, selected `STM` | AI training/NCCL signal, async runtime signal, crypto L1 specialization |
+| `park/` | `FutexWaitWake`, `FutexMutex`, `AtomicWaitNotify`, `SchedulerHandoff` | sleeping mutex and runtime internals study |
+| `queue/` | `MichaelScottQueue`, `VyukovIntrusiveMPSC`, `SPMCRing`, optional `WaitFreeQueue` study | deep lock-free queue and runtime scheduler stories |
+| `stack/` | `TreiberWithHazardPointers`, `LockFreeFreelist`, `FlatCombiningStack` | reclamation-backed Treiber proof |
+| `map/` | `LeftRightMap`, `RCUMap`, `LockFreeOpenAddressingMap`, `ConcurrentResizeProtocol` | database/vector/routing-table read-mostly systems |
+| `deque/` | `WorkStealingInjector`, `WorkStealingPool`, `ResizableChaseLevDeque` | parallel runtime and `crossbeam-deque` interview transfer |
+| `ratelimit/` | `AdaptiveConcurrencyLimiter`, `PriorityLimiter`, `DistributedLimiter`, `CreditBasedBackpressure` | inference gateway, exchange risk gate, fintech hot path |
+| `scope/` | `Nursery`, `ResultGroup`, `ResourceScope`, `JoinOnScopeExit` | structured concurrency library-quality story |
+| `actor/` | `Scheduler`, `SupervisionTree`, `RestartStrategy`, `DeathWatchMonitor`, `Router` | Ray/actor/runtime control-plane story |
+| `parallel/` | `ParallelFilter`, `ParallelMergeSort`, `ParallelBFS`, `ForkJoin`, `WorkStealingScheduler`, `MapReduceLocal`, `ParallelFrontierEngine` | query engine, graph engine, AI scheduler story |
+| `_lab/verify/` | `HappensBeforeDetector`, `DPORScheduleExplorer`, `ModelCheckingHarness`, `ScheduleTraceVisualizer` | correctness-focused systems credibility |
+| `_lab/pattern/` | `Reactor`, `Proactor`, `LeaderFollowers`, `StagedEventDrivenArchitecture`, `BulkheadAndBreakerPattern`, `SupervisedWorkerPool` | production architecture vocabulary |
+| `hazard/` | `HazardPointerSpecTests`, `TreiberIntegration`, `MichaelScottIntegration` | safe lock-free linked structures |
+| `reclamation/` | `HazardVsEpochComparison`, `DeferredReferenceCounting`, `IntervalBasedReclamation` | Rust/C++ reclamation comparison |
+| `rcu/` | `URCU`, `CallRCU`, `RCUBarrier`, `SRCU`, `RCUList`, `RCUMap` | Linux/kernel-style read-mostly systems |
+| `arena/` | `ConcurrentBumpAllocator`, `PerWorkerPool`, `LockFreeFreelistPool`, `PoolAllocator`, `ArenaDebugMode` | zero-allocation hot-path and memory lifecycle story |
+| `clock/` | `MatrixClock`, `DottedVersionVector`, `CausalBroadcastMetadata`, `TimerWheel`, `DeadlineHeap` | distributed DB and scheduling specialization |
+| `crdt/` | `MVRegister`, `RGAList`, `DeltaStateReplication`, `AntiEntropyGossip` | collaborative/distributed state specialization |
+| `_lab/excercise/` | remaining classic puzzles only as interview drills | practice, not portfolio core |
 
-- `DPORScheduleExplorer`
-- `ModelCheckingHarness`
-- full `HappensBeforeDetector`
+Phase 3 deliverable rule:
 
-Why:
+- each portfolio lab must have a runnable demo, p99 or throughput report, and a
+  written explanation of correctness and overload behavior;
+- Rust/C++ companion work should be small but rigorous, with safety comments and
+  ordering explanations;
+- do not call a primitive production-grade unless `_lab/verify` can falsify at
+  least one broken version of the same family.
 
-- The repo already has several lock-free claims. The moat is not "I wrote CAS";
-  the moat is "I can falsify broken CAS algorithms."
+## 9. Vertical Tracks
 
-Deliverables:
+Use these tracks to pull Phase 2 or Phase 3 items forward when a job target
+demands it.
 
-- one deliberately broken queue/stack variant caught by the harness;
-- one reproducible litmus-style memory example;
-- one fairness/starvation benchmark for locks or semaphores.
+### HFT / Exchange / Market Data
 
-## 6. Phase 2 — Low-Latency Queue Core
+```text
+memory publication -> SPSC -> p99 benchmark -> Disruptor -> ThreadPerCore
+-> single-writer matching lab -> Rust/C++ SPSC proof
+```
 
-Goal: build the highest-signal queue path for HFT, exchanges, streaming engines,
-database shard communication, and Rust/C++ interviews.
+Pull forward:
 
-### 6.1 `queue/Index.md`
-
-Implement in this order:
-
-1. `LamportSPSCRing`
-2. complete scaffolded `LockFreeSPSC`
-3. `BlockingBoundedQueue`
-4. `LMAXDisruptor`
-5. `MulticastRingBuffer`
-
-Defer:
-
-- `MichaelScottQueue` until `hazard/` or `reclamation/` exists.
-- `WaitFreeQueue`, `LockFreePriorityQueue`, and `TransferQueue` until later.
-
-Why:
-
-- SPSC and Disruptor are the strongest low-latency signals in the Index.
-- `BlockingBoundedQueue` is lower moat, but it is the practical bridge to condvars,
-  backpressure, and FAANG/top-tier interview floors.
-
-Deliverables:
-
-- `go test -race ./queue`;
-- benchmarks: channel vs MPSC vs MPMC vs padded MPMC vs SPSC;
-- p50/p95/p99 latency report, not just throughput;
-- false-sharing comparison report.
-
-### 6.2 `_lab/pattern/Index.md`
-
-Compose queue primitives into:
-
-- `Disruptor`
-- `PipelineBackpressure`
-- `BackpressurePolicyMatrix`
-- `ThreadPerCore`
-
-Why:
-
-- This turns primitives into recognizable architecture: market-data fan-out,
-  exchange sequencer, streaming stage pipeline, shard-per-core DB toy.
-
-Deliverables:
-
-- small runnable example per pattern;
-- one benchmark or stress case per high-value pattern;
-- explicit slow-consumer policy: block, drop-oldest, drop-newest, shed, degrade.
-
-## 7. Phase 3 — Rust Proof Track
-
-Goal: convert Go concept mastery into Rust-role credibility.
-
-Add a small `rust/` companion tree, starting with:
-
-1. SPSC ring using `UnsafeCell`, explicit `Send`/`Sync`, `Acquire`/`Release`, cache-line alignment.
-2. `Arc<T>` from scratch using relaxed increments, release decrement, acquire fence before drop.
-3. Treiber stack using `crossbeam-epoch`.
-
-Why:
-
-- `memory/Index.md`, `queue/Index.md`, `hazard/Index.md`, and `reclamation/Index.md`
-  transfer strongly to Rust, but Rust hiring still requires visible Rust code.
-
-Deliverables:
-
-- Rust tests;
-- short safety comments explaining each unsafe block;
-- side-by-side note: Go atomic model vs Rust `Ordering`.
-
-## 8. Phase 4 — Exchange / Streaming / Database Portfolio Labs
-
-Goal: produce non-CRUD artifacts aligned with HFT, crypto exchange, streaming, and
-database/storage targets.
-
-### 8.1 Exchange / Market Data Lab
-
-Use Index items:
-
+- `queue/LamportSPSCRing`
 - `queue/LMAXDisruptor`
-- `queue/MulticastRingBuffer`
-- `_lab/pattern/Disruptor`
 - `_lab/pattern/ThreadPerCore`
 - `_lab/pattern/BackpressurePolicyMatrix`
 - `ratelimit/TokenBucket`
-- `ratelimit/LoadShedding`
+- `arena/ThreadLocalArena`
 
-Build:
+### Crypto L1 / Validator / Parallel Execution
 
-- single-writer per-symbol matching toy;
-- SPSC/MPSC ingress;
-- sequenced event output;
-- Disruptor fan-out;
-- deterministic replay;
-- risk/admission gate.
+```text
+memory -> parallel execution -> STM/OCC -> clock/causal order
+-> reclamation/RCU -> Rust proof
+```
 
-### 8.2 Database / Streaming Engine Lab
+Pull forward:
 
-Use Index items:
-
-- `_lab/pattern/ThreadPerCore`
-- `queue/LamportSPSCRing`
-- `queue/BlockingBoundedQueue`
-- `parallel/PipelineWithBackpressure`
+- `parallel/ParallelReduce`, `parallel/PipelineWithBackpressure`
+- `syncx/STM`
+- `clock/LamportClock`, `clock/VectorClock`
 - `map/ShardedMutexMap`
-- `map/CopyOnWriteMap`
-- `rcu/RCUPointer` later
-- `arena/ThreadLocalArena` later
+- `reclamation/EpochBasedReclamation`
+- Rust Treiber with `crossbeam-epoch`
 
-Build:
-
-- shard-per-core key-value toy;
-- append-log toy;
-- group commit;
-- deterministic replay;
-- bounded pipeline with backpressure;
-- p99 report under slow-consumer or slow-disk simulation.
-
-## 9. Phase 5 — Interview Floor Without Diluting Moat
-
-Goal: cover frequent senior interview primitives after the hot-path artifacts are
-underway.
-
-### 9.1 `syncx/Index.md`
-
-Implement:
-
-- `MutexLock`
-- `MesaQueueCond`
-- `MesaNotifyListCond`
-- `Once`
-- `OnceValue`
-- `FuturePromise`
-- `CancellableFuture`
-
-Defer:
-
-- extra lock variants beyond `TTASLock`/`BackoffSpinLock`;
-- advanced barriers unless targeting AI training infra;
-- STM unless targeting crypto L1 / Block-STM.
-
-Why:
-
-- These build sleeping, wakeup, publication, and async-result competence.
-- Condvars unlock bounded blocking queues.
-- Futures unlock actor ask-pattern and structured async composition.
-
-### 9.2 `map/Index.md`
-
-Implement:
-
-- `ShardedMutexMap`
-- `StripedRWMutexMap`
-- `ThreadSafeLRU`
-- `CopyOnWriteMap`
-
-Defer:
-
-- `LockFreeOpenAddressingMap`
-- `SplitOrderedListMap`
-- `LockFreeSkipListMap`
-- `ConcurrentResizeProtocol`
-
-Why:
-
-- LRU and sharded map are common FAANG/top-tier infra floors.
-- Lock-free maps are deep, but unsafe to prioritize before reclamation.
-
-### 9.3 `ratelimit/Index.md`
-
-Implement:
-
-- `TokenBucket`
-- `SlidingWindowCounter`
-- `GCRA`
-- `CircuitBreaker`
-- `LoadShedding`
-- `Bulkhead`
-- `QueueDepthBackpressure`
-
-Why:
-
-- This is the fintech/exchange/API/inference admission-control layer.
-- It is not the deepest low-level moat, so do it after SPSC/Disruptor/benchmark work.
-
-## 10. Phase 6 — Runtime, AI / Agent Infra, and Parallel Systems
-
-Goal: target AI/agent infrastructure and high-throughput runtime roles without
-drifting into app-level AI.
-
-### 10.1 `scope/Index.md`
-
-Implement:
-
-- `CancellationToken`
-- `TokenTree`
-- `Nursery`
-- `ErrGroupClone`
-- `TaskGroup`
-- `BoundedTaskGroup`
-- `DeadlineScheduler`
-- `CooperativeCancellationBenchmark`
-
-Why:
-
-- Ownership of goroutine lifetime is a senior Go requirement.
-- This is the substrate for actor runtime, pipelines, and inference/request orchestration.
-
-### 10.2 `actor/Index.md`
-
-Implement:
-
-- `Mailbox`
-- `BoundedMailbox`
-- `ActorInterface`
-- `ActorRef`
-- `AskPattern`
-- `Scheduler`
-- `Supervisor`
-- `GracefulShutdown`
-
-Why:
-
-- Actor runtime matters for AI/agent infra and Ray-style systems.
-- Keep it minimal; do not build a large framework before queue/backpressure proof exists.
-
-### 10.3 `parallel/Index.md`
-
-Implement:
-
-- `ParallelMap`
-- `ParallelFor`
-- `WorkerPool`
-- `ParallelReduce`
-- `PipelineWithBackpressure`
-- `AllReduceRing`
-- `AllReduceTree`
-
-Defer:
-
-- `WorkStealingScheduler` until `deque/ChaseLevDeque` exists.
-- heavy graph/frontier work until the basics are measured.
-
-Why:
-
-- AI training and database/query engines need work/span, scan/reduce, pipeline,
-  and collective communication vocabulary.
-
-## 11. Phase 7 — Deep Lock-Free, Reclamation, and Read-Mostly Systems
-
-Goal: become credible for Rust/HFT/database internals beyond toy lock-free code.
-
-### 11.1 `hazard/Index.md`
-
-Implement:
-
-- `Domain`
-- `HazardRecord`
-- `Holder`
-- `ProtectReloadLoop`
-- `ResetProtection`
-- `RetireList`
-- `ScanAndReclaim`
-- `HazardPointerSpecTests`
-- `TreiberIntegration`
-
-Then:
-
-- `MichaelScottIntegration`
-
-### 11.2 `reclamation/Index.md`
-
-Implement:
-
-- `EpochBasedReclamation`
-- `ReclamationDomain`
-- `EBRGuard`
-- `LimboBags`
-- `TryAdvanceEpoch`
-- `StalledParticipantDetection`
-- `HazardVsEpochComparison`
-- `ReclamationStressHarness`
-
-Why:
-
-- `crossbeam-epoch` mental model is one of the strongest Rust systems signals.
-- It unlocks production-grade `queue/MichaelScottQueue`, Treiber upgrades, and lock-free maps.
-
-### 11.3 `stack/Index.md` and `queue/Index.md`
-
-Upgrade:
-
-- `stack/TreiberABAExperiment`
-- `stack/TreiberWithHazardPointers`
-- `stack/TreiberWithTaggedPointer`
-- `queue/MichaelScottQueue`
-
-### 11.4 `rcu/Index.md`
-
-Implement after EBR/QSBR basics:
-
-- `RCUReadSection`
-- `AssignPointer`
-- `Dereference`
-- `RCUPointer`
-- `URCU`
-- `SynchronizeRCU`
-- `QSBRRCU`
-- `RCUCorrectnessTests`
-
-Why:
-
-- RCU is high signal for read-mostly databases, routing tables, market-data
-  snapshots, AI routing, and kernel-style thinking.
-
-## 12. Phase 8 — Work Stealing, Allocators, and Optional Specialization
-
-### 12.1 `deque/Index.md`
-
-Implement:
-
-- `MutexDeque`
-- `BoundedRingDeque`
-- `ChaseLevDeque`
-- `WorkStealingInjector`
-- `WorkStealingPool`
-
-Why:
-
-- This unlocks `parallel/ForkJoin`, `parallel/WorkStealingScheduler`, and Rust
-  `crossbeam-deque` interview transfer.
-
-### 12.2 `arena/Index.md`
-
-Implement if targeting HFT/database/AI memory-management roles:
-
-- `BumpAllocator`
-- `TypedArena`
-- `ResettableRegion`
-- `ThreadLocalArena`
-- `SlabAllocator`
-- `AllocationBenchmarkSuite`
-
-Why:
-
-- Allocation latency and lifecycle control matter for HFT, storage engines,
-  parsers, queue nodes, actor messages, and vLLM-style block pools.
-
-### 12.3 Later / Niche Tracks
-
-Only pull these forward for a specific target:
-
-- `syncx/STM`: crypto L1 / Block-STM / OCC / MVCC roles.
-- `clock/HybridLogicalClock`, `clock/VectorClock`: distributed DB and replication roles.
-- `crdt/ORSet`, `crdt/LWWMap`, `crdt/DeltaStateReplication`: collaborative/distributed data roles.
-- advanced `syncx` barriers: AI training/NCCL collective path.
-- `_lab/excercise`: interview drills, not roadmap driver.
-
-## 13. 12-Week Execution Plan
+### AI Inference / Agent Runtime
 
 ```text
-Week 01  memory: AtomicLoadStore, CAS, FetchAdd, HappensBeforeGraph, AcquireReleasePairing
-Week 02  memory: FalseSharing, PublicationSafety, ProgressGuarantees, LinearizationPoint, ABAProblem
-Week 03  queue: LamportSPSCRing / LockFreeSPSC + FIFO/full/empty/wraparound/race tests
-Week 04  benchmark/report: SPSC vs MPSC vs MPMC vs channel; padded vs unpadded; p50/p95/p99
-Week 05  _lab/verify: HistoryRecorder + RandomizedSchedulerHarness + RaceDetectorHarness
-Week 06  queue + pattern: LMAXDisruptor minimum + slow-consumer policy
-Week 07  pattern: ThreadPerCore + PipelineBackpressure + BackpressurePolicyMatrix
-Week 08  exchange lab: single-writer matching toy + sequenced replay
-Week 09  database/streaming lab: shard-per-core KV + append-log/group-commit toy
-Week 10  syncx/cond + queue/BlockingBoundedQueue
-Week 11  Rust companion: SPSC ring with UnsafeCell/Send/Sync/Acquire/Release proof
-Week 12  map/ThreadSafeLRU + ratelimit/TokenBucket + final benchmark/resume report
+queue scheduler -> ratelimit/admission -> scope cancellation
+-> actor mailbox -> backpressure pattern -> inference gateway lab
 ```
 
-If time is limited to four weeks:
+Pull forward:
+
+- `queue/BlockingBoundedQueue`
+- `ratelimit/TokenBucket`, `ratelimit/GCRA`, `ratelimit/LoadShedding`
+- `scope/CancellationToken`, `scope/BoundedTaskGroup`
+- `actor/Mailbox`, `actor/AskPattern`
+- `_lab/pattern/PipelineBackpressure`
+
+### AI Training / NCCL / GPU Runtime
 
 ```text
-memory core -> SPSC -> benchmark report -> Disruptor minimum
+barriers -> reduce/scan -> AllReduceRing/Tree -> p99/latency comparison
+-> toy collective lab
 ```
 
-If targeting Rust roles immediately:
+Pull forward:
+
+- `syncx/CombiningTreeBarrier`
+- `syncx/DisseminationBarrier`
+- `parallel/ParallelReduce`
+- `parallel/AllReduceRing`
+- `parallel/AllReduceTree`
+
+### Database / Streaming / Storage
 
 ```text
-memory core -> Go SPSC -> Rust SPSC -> Arc<T> -> Treiber + crossbeam-epoch
+SPSC/backpressure -> ThreadPerCore -> append log / group commit
+-> LRU/cache -> RCU/EBR -> arena allocation
 ```
 
-If targeting HFT / exchange:
+Pull forward:
+
+- `queue/LamportSPSCRing`
+- `_lab/pattern/ThreadPerCore`
+- `parallel/PipelineWithBackpressure`
+- `map/ThreadSafeLRU`, `map/CopyOnWriteMap`
+- `rcu/RCUPointer`
+- `arena/BumpAllocator`
+
+### FAANG / Dubai Senior Backend Floor
 
 ```text
-SPSC -> Disruptor -> ThreadPerCore -> matching lab -> p99 report -> Rust SPSC
+bounded queue -> thread-safe map/LRU -> rate limiter -> context cancellation
+-> semaphore/bulkhead -> system-design writeups
 ```
 
-If targeting database / streaming:
+Pull forward:
+
+- `queue/BlockingBoundedQueue`
+- `map/ShardedMutexMap`
+- `map/ThreadSafeLRU`
+- `ratelimit/TokenBucket`
+- `ratelimit/CircuitBreaker`
+- `scope/CancellationToken`
+- `syncx/WeightedSemaphore`
+
+## 10. Near-Term Execution
+
+Because `LockFreeSPSC` is the active slice, do this before `LMAXDisruptor`:
 
 ```text
-memory -> SPSC -> ThreadPerCore -> append-log/group-commit -> LRU/cache -> RCU/EBR
+1. memory/SPSC subset:
+   AtomicLoadStore, AcquireReleasePairing, PublicationSafety,
+   FalseSharing, LinearizationPoint, ProgressGuarantees.
+
+2. queue/SPSC completion:
+   generic SPSC API, FIFO/full/empty/wraparound tests,
+   SPSC concurrent conservation test, race detector run.
+
+3. queue/SPSC benchmark:
+   channel vs SPSC vs MPSC vs MPMC vs padded MPMC,
+   p50/p95/p99 and allocation report.
+
+4. short note:
+   docs/notes/spsc-ring.md or package comment with invariants,
+   linearization points, progress guarantee, and contract.
 ```
 
-If targeting AI / agent infra:
+Then move to:
 
 ```text
-queue scheduler -> scope -> FuturePromise -> actor mailbox -> bounded task group
--> inference/agent gateway demo -> AllReduce only if training infra
+LMAXDisruptor minimum -> slow-consumer policy -> ThreadPerCore example
 ```
 
-## 14. Definition of Done
+## 11. Definition of Done
 
 Every roadmap item that moves from `[ ]` or `[~]` to `[x]` in an `Index.md` must have:
 
@@ -605,23 +484,29 @@ For pattern labs, also require:
 - explicit backpressure/overflow/shutdown policy;
 - one benchmark or stress case if the pattern is performance-related.
 
-## 15. What Not To Do Yet
+## 12. What Not To Do Yet
 
 - Do not implement more lock variants before SPSC, Disruptor, and p99 reports.
-- Do not start full CRDT/clock suites unless targeting distributed DB/collab roles.
+- Do not start full CRDT/clock suites unless targeting distributed DB, crypto L1,
+  collaborative systems, or causal-ordering interview prep.
 - Do not implement lock-free maps before reclamation exists.
 - Do not build a large actor framework before `scope/`, `FuturePromise`, and bounded mailboxes exist.
 - Do not build advanced barriers before deciding to target AI training/NCCL-style roles.
 - Do not call a primitive production-grade if `_lab/verify` cannot falsify at least one broken version.
 
-## 16. One-Line Summary
+## 13. One-Line Summary
 
 ```text
-Index-driven path:
-memory -> verify -> SPSC -> benchmarks -> Disruptor/ThreadPerCore
--> exchange + database/streaming labs -> Rust proof -> cond/LRU/ratelimit floors
--> scope/actor/parallel -> hazard/EBR/RCU/deque/arena specialization
+Spiral path:
+Phase 1 core pass across packages
+-> Phase 2 proof / benchmark / composition pass
+-> Phase 3 deep / portfolio pass
+
+Active spine:
+memory -> SPSC -> p99 report -> Disruptor/ThreadPerCore
+-> exchange + database/streaming labs -> Rust proof
+-> hazard/EBR/RCU/deque/arena specialization
 ```
 
-This keeps the project aligned with your new Markdown structure and with the
-Rust/Go high-performance market target.
+This keeps the project aligned with the package `Index.md` structure, the local
+research docs, and the current Rust/Go high-performance market signal.
