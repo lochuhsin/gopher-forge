@@ -131,6 +131,288 @@ func doLockTestWork() {
 	lockTestSink.Store(x)
 }
 
+func TestSeqLockInitialStateIsEvenAndValidates(t *testing.T) {
+	var lk SeqLock
+	s := lk.ReadBegin()
+	if s != 0 {
+		t.Fatalf("initial seq = %d, want 0", s)
+	}
+	if !lk.ReadValidate(s) {
+		t.Fatal("ReadValidate(0) on fresh SeqLock = false, want true")
+	}
+}
+
+func TestSeqLockWriteLockMakesSeqOdd(t *testing.T) {
+	var lk SeqLock
+	lk.WriteLock()
+	s := lk.ReadBegin()
+	if s&1 == 0 {
+		t.Fatalf("seq after WriteLock = %d, want odd", s)
+	}
+	if lk.ReadValidate(s) {
+		t.Fatal("ReadValidate of odd start returned true; must reject mid-write reads")
+	}
+	lk.WriteUnlock()
+}
+
+func TestSeqLockWriteUnlockRestoresEven(t *testing.T) {
+	var lk SeqLock
+	lk.WriteLock()
+	lk.WriteUnlock()
+	s := lk.ReadBegin()
+	if s&1 != 0 {
+		t.Fatalf("seq after WriteLock+WriteUnlock = %d, want even", s)
+	}
+	if !lk.ReadValidate(s) {
+		t.Fatal("ReadValidate(even, unchanged) = false, want true")
+	}
+}
+
+func TestSeqLockDetectsConcurrentWriteStart(t *testing.T) {
+	var lk SeqLock
+	start := lk.ReadBegin()
+	lk.WriteLock()
+	if lk.ReadValidate(start) {
+		t.Fatal("validate returned true while writer holds the lock")
+	}
+	lk.WriteUnlock()
+}
+
+func TestSeqLockDetectsCompletedWriteBetween(t *testing.T) {
+	var lk SeqLock
+	start := lk.ReadBegin()
+	lk.WriteLock()
+	lk.WriteUnlock()
+	if lk.ReadValidate(start) {
+		t.Fatal("validate returned true after an intervening write cycle")
+	}
+}
+
+func TestSeqLockSequenceProgressesByTwoPerCycle(t *testing.T) {
+	var lk SeqLock
+	const cycles = 100
+	for range cycles {
+		lk.WriteLock()
+		lk.WriteUnlock()
+	}
+	if got := lk.ReadBegin(); got != 2*cycles {
+		t.Fatalf("seq after %d cycles = %d, want %d", cycles, got, 2*cycles)
+	}
+}
+
+// TestSeqLockReaderNeverObservesTornWrite is the canonical SeqLock concurrency
+// test. Invariant: protected fields a and b must always be equal. The writer
+// updates both between WriteLock and WriteUnlock; a reader that does NOT use
+// seq validation can observe a torn pair (a != b). A correct SeqLock reader
+// must never accept a torn snapshot after ReadValidate returns true.
+//
+// Protected fields are atomic.Uint64 so the test runs cleanly under -race.
+// The SeqLock still adds real value: per-field atomicity does not guarantee
+// multi-field consistency.
+func TestSeqLockReaderNeverObservesTornWrite(t *testing.T) {
+	var lk SeqLock
+	var a, b atomic.Uint64
+
+	const readers = 8
+	duration := 200 * time.Millisecond
+	if testing.Short() {
+		duration = 50 * time.Millisecond
+	}
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			lk.WriteLock()
+			v := a.Load() + 1
+			a.Store(v)
+			// Widen the tear window so a broken validate is more likely caught.
+			runtime.Gosched()
+			b.Store(v)
+			lk.WriteUnlock()
+		}
+	})
+
+	var tears atomic.Int64
+	for range readers {
+		wg.Go(func() {
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				var av, bv uint64
+				for {
+					s := lk.ReadBegin()
+					av = a.Load()
+					bv = b.Load()
+					if lk.ReadValidate(s) {
+						break
+					}
+				}
+				if av != bv {
+					tears.Add(1)
+				}
+			}
+		})
+	}
+
+	time.Sleep(duration)
+	close(stop)
+	wg.Wait()
+
+	if got := tears.Load(); got != 0 {
+		t.Fatalf("readers observed %d torn snapshots; SeqLock failed to provide consistency", got)
+	}
+}
+
+func TestSeqLockReadersMakeProgressUnderContention(t *testing.T) {
+	var lk SeqLock
+	var data atomic.Uint64
+
+	duration := 100 * time.Millisecond
+	if testing.Short() {
+		duration = 25 * time.Millisecond
+	}
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			lk.WriteLock()
+			data.Add(1)
+			lk.WriteUnlock()
+			time.Sleep(time.Microsecond)
+		}
+	})
+
+	var successes atomic.Int64
+	const readers = 4
+	for range readers {
+		wg.Go(func() {
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				s := lk.ReadBegin()
+				_ = data.Load()
+				if lk.ReadValidate(s) {
+					successes.Add(1)
+				}
+			}
+		})
+	}
+
+	time.Sleep(duration)
+	close(stop)
+	wg.Wait()
+
+	if got := successes.Load(); got == 0 {
+		t.Fatal("no reader ever validated successfully; readers may be livelocking")
+	}
+}
+
+func TestSeqLockSnapshotMonotonic(t *testing.T) {
+	var lk SeqLock
+	var data atomic.Uint64
+
+	duration := 100 * time.Millisecond
+	if testing.Short() {
+		duration = 25 * time.Millisecond
+	}
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			lk.WriteLock()
+			data.Add(1)
+			lk.WriteUnlock()
+		}
+	})
+
+	var regressions atomic.Int64
+	const readers = 4
+	for range readers {
+		wg.Go(func() {
+			var last uint64
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				var v uint64
+				for {
+					s := lk.ReadBegin()
+					v = data.Load()
+					if lk.ReadValidate(s) {
+						break
+					}
+				}
+				if v < last {
+					regressions.Add(1)
+				}
+				last = v
+			}
+		})
+	}
+
+	time.Sleep(duration)
+	close(stop)
+	wg.Wait()
+
+	if got := regressions.Load(); got != 0 {
+		t.Fatalf("validated snapshot went backwards %d times", got)
+	}
+}
+
+func TestSeqLockNoFailuresWithoutWrites(t *testing.T) {
+	var lk SeqLock
+
+	const readers = 8
+	const iterations = 10_000
+
+	var failures atomic.Int64
+	var wg sync.WaitGroup
+	for range readers {
+		wg.Go(func() {
+			for range iterations {
+				s := lk.ReadBegin()
+				if !lk.ReadValidate(s) {
+					failures.Add(1)
+				}
+			}
+		})
+	}
+	wg.Wait()
+
+	if got := failures.Load(); got != 0 {
+		t.Fatalf("ReadValidate failed %d times with no concurrent writers", got)
+	}
+}
+
 func TestRWMutexLockReadersShareAndWritersExclude(t *testing.T) {
 	var lock RWMutexLock
 	lock.RLock()

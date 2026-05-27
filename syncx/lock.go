@@ -214,15 +214,18 @@ func (r *RWMutexLock) RUnlock() {
 //     calls will corrupt the seq parity.
 
 type SeqLock struct {
-	seq atomic.Uint64
+	seq      atomic.Uint64
+	writerMu sync.Mutex
 }
 
 func (s *SeqLock) WriteLock() {
+	s.writerMu.Lock()
 	s.seq.Add(1)
 }
 
 func (s *SeqLock) WriteUnlock() {
 	s.seq.Add(1)
+	s.writerMu.Unlock()
 }
 
 func (s *SeqLock) ReadBegin() uint64 {
@@ -233,4 +236,17 @@ func (s *SeqLock) ReadBegin() uint64 {
 // if the end value is even, it means that we didn't catch a write mid-way through
 func (s *SeqLock) ReadValidate(start uint64) bool {
 	return (start&1) == 0 && s.seq.Load() == start
+}
+
+func (s *SeqLock) Read(f func()) {
+	for {
+		start := s.seq.Load()
+		if start&1 != 0 {
+			continue
+		}
+		f()
+		if s.seq.Load() == start {
+			return
+		}
+	}
 }
