@@ -1,287 +1,627 @@
-# gopher-forge — Roadmap
+# gopher-forge ROADMAP — Index-Driven Rust/Go High-Performance Plan
 
-> **目標**:杜拜/UAE 地區 · Senior SWE · **Rust/Go 職缺** · 極限場景(非 CRUD,Fintech 可)。
-> Repo 用 Go 實作,概念 language-agnostic,**Rust 相關性越高越好**。
-> 時間:Optimal **3 個月**,極限 **6 個月**。
->
-> **方法論**:5 個平行調查 agent、聚合 **250+ 網站**(HFT / Crypto / AI Infra / FAANG / Dubai)。詳細證據在 [docs/research/](docs/research/)。
-> 本檔有兩個 lens:**Part I**(行動計畫:Dubai 地區 + Rust 相關性 ROI 最佳化)、**Part II**(參考:全球 cross-vertical signal,若你之後 pivot)。
+> Target: high-salary, high-moat Rust/Go infrastructure roles: HFT, market
+> making, exchange core, crypto infrastructure, FAANG/top-tier infra, AI/agent
+> runtime, fintech hot paths, streaming, database/storage engines, high-throughput
+> and ultra-low-latency systems. Non-goal: CRUD backend.
 
----
+## 0. Source of Truth
 
-# Part I — 行動計畫(Dubai + Rust,實際要照做的)
+This roadmap is driven by the package `Index.md` files. The old `TODO.md` files
+are no longer treated as authoritative.
 
-## 1. 為什麼地區版 ≠ 全球產業版
+Use these documents as the current system map:
 
-杜拜真實雇主結構跟「全球該產業」不同 — deep HFT systems(MCS、dissemination barrier)在杜拜**還沒落地**:
+- Foundation: `memory/Index.md`, `syncx/Index.md`, `park/Index.md`
+- Data structures: `queue/Index.md`, `stack/Index.md`, `map/Index.md`, `deque/Index.md`
+- Reclamation/read-mostly: `hazard/Index.md`, `reclamation/Index.md`, `rcu/Index.md`
+- Runtime/patterns: `scope/Index.md`, `actor/Index.md`, `parallel/Index.md`, `_lab/pattern/Index.md`
+- Verification: `_lab/verify/Index.md`
+- Niche/deep tracks: `arena/Index.md`, `clock/Index.md`, `crdt/Index.md`, `_lab/excercise/Index.md`
 
-| 杜拜雇主 | 狀態 | 語言 | 極限場景? |
-|---------|------|------|-----------|
-| **Crypto 交易所**(Bybit/Binance/OKX/Bitget) | **主力,大量招** | **Go 主 + Rust(Bybit 有 Rust 職缺)** | ✅ 撮合、市場資料 lock-free |
-| **Fintech/BNPL**(Tabby/Tamara) | 活躍 | Go/Python | ✅ 高吞吐 payment、idempotency |
-| **AI infra**(G42/Core42,Abu Dhabi) | 成長 | **Python 主** | ✅ 但 Go 只在 control plane |
-| **HFT**(Citadel DIFC) | **nascent**(2026+ 談判) | C++/Rust | ✅ 但**還沒落地**(未來賭注) |
-| **Rust 純職缺**(Syndica/Bybit Rust) | niche 但 premium | **Rust** | ✅ Solana infra、撮合 |
+External market calibration:
 
-**甜蜜點 = crypto 交易所系統層(撮合/市場資料/lock-free)+ Rust 系統職缺**。HFT 是未來賭注,AI infra 受 Go-only 限制(深度需 Python)。
+- `docs/research/high_performance_findings_2026-05-27.md`
+- `docs/research/high_performance_source_catalog_2026-05-27.tsv`
 
----
+## 1. Strategy
 
-## 2. ROI 模型
+The highest-return path is not to implement every primitive. The highest-return
+path is to build a chain of artifacts that a performance interviewer can inspect:
 
-```
-ROI = ( V_dubai × R_corr ) / E_remaining
-
-V_dubai     杜拜市場價值(0-10):crypto CEX 40% + fintech 20% + AI 20%
-            + HFT-future 10% + 通用 backend 10%,對「極限場景」加成
-R_corr      Rust 相關性(0.6-1.0):這個 Go package 教的概念,在 Rust
-            系統職位被看重的程度(crossbeam / parking_lot / tokio / rayon)
-E_remaining 剩餘工時(週)— 已實作的不計
+```text
+memory model -> SPSC ring -> p99 benchmark report -> Disruptor / ThreadPerCore
+-> exchange or streaming lab -> Rust atomic proof -> reclamation/deep systems
 ```
 
-時間換算(part-time):3 個月 ≈ **11-12 工時週**;6 個月 ≈ **23-24 工時週**。
+This repo should tell one story:
 
----
+> I can reason about memory ordering, cache behavior, progress guarantees,
+> backpressure, p99 latency, and correctness, then compose those primitives into
+> exchange, database, streaming, and AI-runtime systems.
 
-## 3. Rust 相關性對照表(要 maximize 的軸)
+Do not frame the project as a production replacement for `sync`, `crossbeam`,
+`parking_lot`, `tokio`, or `folly`. Frame it as a high-performance systems forge.
 
-| Package | R_corr | 對應 Rust 生態 |
-|---------|--------|---------------|
-| **queue/** | **1.0** | `crossbeam-queue`, `crossbeam-channel` |
-| **deque/** | **1.0** | `crossbeam-deque`(Chase-Lev **就是**這 crate) |
-| **hazard/ + reclamation/** | **1.0** | `crossbeam-epoch`(無 GC lock-free 回收的標誌主題) |
-| **memory/** | **1.0** | `std::sync::atomic`, `Ordering::{Acquire,Release,SeqCst}` |
-| **syncx/Lock**(Spin/MCS/Seqlock) | **1.0** | `parking_lot`, `spin`, `seqlock` |
-| **syncx/Future** | **1.0** | `std::future::Future` + `tokio`(**Rust async 核心**) |
-| **park/** | **1.0** | `parking_lot_core`, tokio park/unpark |
-| **parallel/** | **0.95** | `rayon`(Rust 旗艦 data-parallel) |
-| **STM** | **0.95** | Block-STM(Aptos,**Rust 寫的**) |
-| **rcu/** | **0.9** | `arc-swap`, `left-right` |
-| **stack/** | **0.9** | `crossbeam`(Treiber) |
-| **arena/** | **0.9** | `bumpalo`, `typed-arena` |
-| **map/** | **0.85** | `dashmap`, `evmap`(Block-STM 用 dashmap) |
-| **actor/** | **0.85** | `actix`, `ractor`, tokio actors |
-| **syncx/Semaphore** | **0.85** | `tokio::sync::Semaphore` |
-| **syncx/Once** | **0.8** | `std::sync::Once`, `OnceCell` |
-| **scope/** | **0.8** | tokio structured concurrency / `JoinSet` |
-| **clock/** | **0.75** | 雜 crate,較邊緣 |
-| **crdt/** | **0.75** | `rust-crdt`, `automerge-rs` |
-| **syncx/Barrier** | **0.7** | `std::sync::Barrier`(但 NCCL=C++/CUDA) |
-| **ratelimit/** | **0.7** | `governor`(policy 層) |
-| **syncx/Latch/WaitGroup** | **0.7** | tokio,偏 Go idiom |
-| **syncx/Cond** | **0.7** | `std::sync::Condvar` |
-| **syncx/Channel patterns** | **0.6** | Go-specific(Rust mpsc 不那麼 idiomatic)— **最低** |
+## 2. Scoring Model
 
-> **核心洞察**:R_corr=1.0 那一圈(crossbeam + parking_lot + tokio Future)**同時是** Rust 系統面試核心 **又是** 杜拜 crypto 撮合/市場資料的極限場景。兩目標完美對齊。Channel patterns 反而最低(Go 特有)。
+Rank Index items by these axes:
 
----
+| Axis | Meaning |
+|---|---|
+| `M` | Moat: separates high-performance engineers from ordinary backend engineers |
+| `H` | Hot-path relevance: appears in latency, throughput, p99, or cache-sensitive paths |
+| `P` | Portfolio proof: can produce code, tests, benchmarks, reports, and demos |
+| `R` | Rust/Go transfer: useful in both Go and Rust systems interviews |
+| `I` | Interview frequency in target verticals |
+| `D` | Dependency leverage: unlocks many later packages |
 
-## 4. 完整評分表(按 ROI 排序)
+Sort rule:
 
-> `✅`=已實作可加 bench;`◐`=部分(補缺);`○`=從零。E=**剩餘**工時。Phase 見第 5-7 節。
+1. Maximize `M + H + P`.
+2. Prefer high `D` foundations early.
+3. Use `R` to keep Rust/Go roles both viable.
+4. Use `I` to avoid beautiful but rarely asked topics too early.
+5. Only then consider implementation effort.
 
-| Package / Item | V | R_corr | E | **ROI** | 狀態 | Phase | Rust |
-|---|---|---|---|---|---|---|---|
-| stack/ polish+bench | 5.5 | 0.9 | 0.5 | **9.90** | ◐ | A | crossbeam |
-| syncx/Lock +CLH+Seqlock | 8.0 | 1.0 | 1.0 | **8.00** | ◐ | **A** | parking_lot |
-| syncx/Latch +CountDownLatch | 5.5 | 0.7 | 0.5 | **7.70** | ◐ | A | — |
-| syncx/Once | 4.5 | 0.8 | 0.5 | **7.20** | ○ | A | OnceCell |
-| syncx/Barrier 基礎(Cyclic) | 5.0 | 0.7 | 0.5 | **7.00** | ◐ | A | std::Barrier |
-| syncx/Semaphore +weighted/timeout | 6.5 | 0.85 | 1.0 | **5.53** | ◐ | **A** | tokio Sem |
-| park/ | 6.5 | 1.0 | 1.5 | **4.33** | ○ | **D** | parking_lot_core |
-| **memory/** | 8.0 | 1.0 | 2.0 | **4.00** | ○ | **B** | std::atomic |
-| **queue/** 剩餘(SPSC+M-S+bench) | 9.5 | 1.0 | 2.5 | **3.80** | ◐ | **B** | crossbeam-queue |
-| **syncx/Future + Promise** | 7.5 | 1.0 | 2.0 | **3.75** | ○ | **B** | Future trait |
-| **deque/** Chase-Lev | 7.0 | 1.0 | 2.0 | **3.50** | ○ | **D** | crossbeam-deque |
-| map/ (sharded + sync.Map) | 8.0 | 0.85 | 2.0 | **3.40** | ○ | **E** | dashmap |
-| **ratelimit/** | 8.5 | 0.7 | 2.0 | **2.98** | ○ | **C** | governor |
-| rcu/ 完整 | 6.5 | 0.9 | 2.0 | **2.93** | ◐ | later | arc-swap |
-| scope/ | 7.0 | 0.8 | 2.0 | **2.80** | ○ | E | tokio JoinSet |
-| syncx/Barrier 進階(NCCL) | 6.0 | 0.7 | 1.5 | **2.80** | ◐stub | later(AI) | — |
-| arena/ | 6.0 | 0.9 | 2.0 | **2.70** | ○ | later | bumpalo |
-| syncx/Channel +pipeline | 6.5 | 0.6 | 1.5 | **2.60** | ◐ | later | — |
-| **hazard/ + reclamation/** | 7.5 | 1.0 | 3.0 | **2.50** | ○ | **D** | crossbeam-epoch |
-| clock/ | 6.5 | 0.75 | 2.0 | **2.44** | ○ | later | — |
-| parallel/ core | 7.5 | 0.95 | 3.0 | **2.38** | ○ | **E** | rayon |
-| actor/ | 6.0 | 0.85 | 2.5 | **2.04** | ○ | later | actix |
-| STM (Block-STM) | 7.5 | 0.95 | 4.0 | **1.78** | ○ | later(Rust!) | Block-STM |
-| crdt/ | 5.5 | 0.75 | 3.0 | **1.38** | ○ | later | rust-crdt |
+## 3. Current State From Index
 
----
+Already useful:
 
-## 5. 3 個月 Optimal 序列(~11.5 週)
+- `queue/`: `MutexMPMC`, `MutexMPSC`, `LockFreeMPMC`, `LockFreePaddedMPMC`, `LockFreeMPSC`
+- `stack/`: mutex baselines, Treiber stack, elimination-backoff stack
+- `syncx/`: spin/ticket/MCS locks, seqlock, semaphore variants, WaitGroup, counting/sense barriers, channel helpers
 
-**策略**:syncx Rust-parity 廉價完成 + 3 個 deep Rust-correlated showcase + 1 個杜拜職位 anchor。
+Highest-value gaps:
 
-### Phase A — Rust-parity 廉價完成(3.0 週)
-- [ ] syncx/Lock +CLH+Seqlock(1.0)— `parking_lot`/`seqlock`;Seqlock = 市場資料極限場景
-- [ ] syncx/Semaphore +weighted/timeout(1.0)— `tokio::sync::Semaphore`
-- [ ] syncx/Once(0.5)— `OnceCell`
-- [ ] syncx/Latch +CountDownLatch(0.5)
+- `memory/Index.md`: most items are planned; this is the upstream correctness layer.
+- `queue/Index.md`: `LockFreeSPSC` is scaffold; `LamportSPSCRing`, `LMAXDisruptor`, `MulticastRingBuffer` are planned.
+- `_lab/verify/Index.md`: no checker/harness layer yet; benchmarks and correctness claims need this.
+- `_lab/pattern/Index.md`: `Disruptor`, `ThreadPerCore`, `PipelineBackpressure`, `BackpressurePolicyMatrix` are planned.
+- Rust proof is missing from the repo structure; add it as a small companion after Go SPSC.
+- `hazard/`, `reclamation/`, `rcu/`: planned; needed for deep Rust/HFT/DB credibility.
 
-### Phase B — Deep Rust-correlated showcases(6.5 週)← **portfolio 主力**
-- [ ] **queue/** 剩餘:純 SPSC(rigtorp 風)+ Michael-Scott + benchmark(2.5)— `crossbeam-queue`;Bybit 撮合 + Coinbase LMAX
-- [ ] **memory/** ordering + atomics + OnceCell(2.0)— `std::atomic Ordering`;Bybit infra 極限
-- [ ] **syncx/Future + Promise**(2.0)— **Rust `Future` trait**(Rust async 入門信號最強)
+## 4. Dependency Graph
 
-### Phase C — 杜拜職位 anchor(2.0 週)
-- [ ] **ratelimit/**(2.0)— Binance 確認面試題、VARA 合規、Tabby fraud(R_corr 低但 V 高,不能跳過)
+```text
+memory/
+  -> queue/ SPSC, MPSC, MPMC, Michael-Scott
+  -> stack/ Treiber ABA/reclamation work
+  -> syncx/ MutexLock, condvars, futures, barriers
+  -> hazard/, reclamation/, rcu/
+  -> map/ lock-free and RCU variants
+  -> deque/ Chase-Lev
 
-**總計 11.5 週 ≈ 3 個月** ✓ → 「高並發 Go backend + lock-free 系統」portfolio,直接對應 Bybit/Binance/OKX/Tabby JD。
+queue/ + syncx/ + scope/
+  -> _lab/pattern/ Disruptor, PipelineBackpressure, ThreadPerCore
+  -> actor/ bounded mailbox and scheduler
+  -> parallel/ pipeline and work stealing
 
-### 3 篇 blog(明確畫 Go→Rust 對應)
-1. 「Go lock-free queue ≈ crossbeam:SPSC benchmark + cache-line 分析」
-2. 「Memory ordering 實戰:Go atomic vs Rust `Ordering::Acquire/Release`」
-3. 「從零實作 Future:Go channel 版 ≈ Rust `Future` trait + waker」
+hazard/ or reclamation/
+  -> stack/ TreiberWithHazardPointers
+  -> queue/ MichaelScottQueue
+  -> map/ lock-free maps
 
----
-
-## 6. 6 個月極限延伸(+~11.5 週)
-
-3 個月核心 + **crossbeam 全家桶**(Rust 系統相關性最高的 cluster):
-
-### Phase D — crossbeam cluster(深 lock-free,7.0 週)
-- [ ] **hazard/ + reclamation/**(3.0)— `crossbeam-epoch`;無 GC lock-free 回收 = Rust 最硬 signal
-- [ ] **deque/** Chase-Lev(2.0)— **就是** `crossbeam-deque`
-- [ ] **park/**(1.5)— `parking_lot_core` / tokio;runtime 地基
-- [ ] (順便)queue/ 接 hazard pointer 做 Michael-Scott 安全回收
-
-### Phase E — 並發容器 + 並行(4.5 週)
-- [ ] **map/** sharded + sync.Map(2.0)— `dashmap`;撮合狀態、帳戶 map
-- [ ] **parallel/** core + rayon-style join/scope(2.5)— `rayon`;G42 AI 橋接 + crypto parallel
-- [ ] (選)scope/(2.0)— fintech/BNPL cancellation
-
-**6 個月總計 ~23 週** ✓
-
-### 額外 blog
-4. 「crossbeam-epoch 在 Go:hazard pointer vs EBR」
-5. 「Chase-Lev work-stealing deque:Go runtime ≈ crossbeam-deque」
-
----
-
-## 7. 6 個月以後(若繼續)
-
-按 ROI 遞減,且這些**最值得直接用 Rust 寫**(相關性最大化):
-- **STM / Block-STM** — Aptos 是 Rust;認真打 crypto L1 就**直接用 Rust 寫**,signal 爆表
-- **rcu/**(`arc-swap`)、**arena/**(`bumpalo`)、**actor/**(`actix`)
-- **clock/ + crdt/** — crypto 分散式,R_corr 中等
-- **syncx/Channel +pipeline** — 實用但 Rust 相關性最低
-- **syncx/Barrier 進階(NCCL)** — 只有走 AI infra 才做,需配 Python
-
----
-
-## 8. 累積 Signal 曲線
-
-```
-累積
-Signal
-  ▲                                    ___________  ← 邊際遞減(週 23+)
-  │                          _________/
-  │                  _______/  ← Phase D-E(crossbeam,Rust 頂峰)
-  │           ______/
-  │      ____/  ← Phase B-C 最陡(deep showcase + 杜拜 anchor)★ 投職位門檻
-  │  ___/
-  │_/  ← Phase A(廉價完成)
-  └──────┬──────────┬──────────────────┬─────────▶ 週
-        3          11(3個月)          23(6個月)
-                "job-ready knee"    "Rust-systems 完整"
+_lab/verify/
+  -> every package that claims lock-free, wait-free, linearizable, fair, or race-free behavior
 ```
 
-**數學驗證你的直覺**:週 3-11 斜率最陡(可投杜拜 crypto 職位);週 23 後遞減 → 3 個月 optimal、6 個月極限。
+## 5. Phase 1 — Performance Correctness Foundation
 
----
+Goal: make the repo credible before adding more primitives.
 
-## 9. 誠實警示
+### 5.1 `memory/Index.md`
 
-1. **Go-only 對 AI infra 有天花板**:G42 深度 AI 是 Python。Go 版 `parallel/AllReduce` 是「概念 signal」不是 production match。真打 AI infra 要補 Python。
-2. **HFT 是未來賭注**:`memory/`/`arena/`/`hazard/` 的最強買家(Citadel DIFC)**還沒落地**,押 2026+。但這些同時是 Rust crossbeam signal,不浪費。
-3. **R_corr=1.0 ≠ 用 Go 寫就能拿 Rust 職位**:代表「概念高度 transfer」,但 Rust 職缺要看**真的 Rust code**。**強烈建議** 6 個月後把 1-2 個 showcase(queue 或 STM)**真的用 Rust 重寫** → 從 correlated 升級成 proven。
-4. **ratelimit 矛盾**:V 最高(杜拜 #1 面試題)但 R_corr 最低之一(policy 層)。仍要做(硬門檻),但別期待它展示 Rust 系統深度。
+Implement first:
 
----
+- `AtomicLoadStore`
+- `CompareAndSwap`
+- `FetchAddCounter`
+- `AtomicExchange`
+- `HappensBeforeGraph`
+- `AcquireReleasePairing`
+- `SeqCstOrdering`
+- `DataRaceAndDRFSC`
+- `FalseSharing`
+- `PublicationSafety`
+- `ProgressGuarantees`
+- `LinearizationPoint`
+- `ABAProblem`
+- `LitmusTests`
 
-# Part II — 參考:全球 Cross-Vertical Context
+Why:
 
-> 若你之後 pivot 出杜拜(SF / London / Singapore / 遠端),用這部分。資料同樣來自 250+ sources。
+- This is the vocabulary for every Rust/Go high-performance interview.
+- It unlocks `queue/`, `stack/`, `hazard/`, `reclamation/`, `rcu/`, `deque/`, and lock-free `map/`.
 
-## 10. 跨 Vertical Signal 矩陣
+Deliverables:
 
-> ★ = 在該 vertical 面試/JD/blog 被引用頻率 + 可實作性。
+- executable examples, not only prose;
+- broken examples where useful;
+- `docs/notes/memory-model.md`;
+- links to `_lab/verify/LitmusRunner` once that exists.
 
-| Package / Item | HFT | Crypto | AI Infra | FAANG | Dubai | 全球 Composite |
-|---|---|---|---|---|---|---|
-| **queue/** (SPSC/MPSC/MPMC) | ★5 | ★5 | ★5 | ★5 | ★4 | **4.8 / T0** |
-| **ratelimit/** | ★4 | ★4 | ★4 | ★5 | ★5 | **4.4 / T0** |
-| **syncx/Channel** | ★4 | ★4 | ★4 | ★5 | ★4 | **4.2 / T0** |
-| **parallel/** | ★3 | ★5 | ★5 | ★4 | ★3 | **4.0 / T0** |
-| **map/** | ★3 | ★4 | ★4 | ★5 | ★3 | **3.8 / T1** |
-| **syncx/Mutex+RWMutex** | ★5 | ★3 | ★3 | ★4 | ★3 | **3.6 / T1** |
-| **syncx/Barrier**(基礎) | ★2 | ★3 | ★5 | ★5 | ★3 | **3.6 / T1** |
-| **scope/** | ★3 | ★3 | ★4 | ★5 | ★3 | **3.6 / T1** |
-| **syncx/WaitGroup+Latch** | ★3 | ★3 | ★3 | ★5 | ★3 | **3.4 / T1** |
-| **syncx/Future** | ★3 | ★3 | ★4 | ★4 | ★3 | **3.4 / T1** |
-| **syncx/Lock 進階**(MCS/TTAS/Seqlock) | ★5 | ★4 | ★3 | ★2 | ★3 | **3.4 / T1** |
-| **memory/** | ★5 | ★4 | ★3 | ★2 | ★3 | **3.4 / T1** |
-| **syncx/Semaphore** | ★3 | ★3 | ★3 | ★4 | ★4 | **3.4 / T1** |
-| **syncx/Barrier 進階**(NCCL) | ★2 | ★3 | ★5 | ★2 | ★3 | **3.0 / T2** |
-| **hazard/+reclamation/+rcu/** | ★3 | ★3 | ★4 | ★2 | ★3 | **3.0 / T2** |
-| **actor/** | ★2 | ★3 | ★4 | ★3 | ★3 | **3.0 / T2** |
-| **clock/** | ★2 | ★5 | ★2 | ★3 | ★3 | **3.0 / T2** |
-| **crdt/** | ★1 | ★5 | ★2 | ★4 | ★3 | **3.0 / T2** |
-| **arena/** | ★4 | ★3 | ★4 | ★1 | ★2 | **2.8 / T2** |
-| **syncx/STM** | ★1 | ★5 | ★3 | ★2 | ★3 | **2.8 / T2** |
-| **stack/** | ★3 | ★3 | ★2 | ★3 | ★2 | **2.6 / T2** |
-| **syncx/Once** | ★2 | ★2 | ★3 | ★4 | ★2 | **2.6 / T2** |
-| **park/** | ★2 | ★3 | ★3 | ★2 | ★3 | **2.6 / T3** |
-| **deque/** | ★2 | ★2 | ★3 | ★3 | ★2 | **2.4 / T3** |
-| **syncx/Cond** | ★2 | ★2 | ★3 | ★3 | ★2 | **2.4 / T3** |
+### 5.2 `_lab/verify/Index.md`
 
-> **注意**:全球 Tier 跟 Dubai Phase 不同。例:`syncx/STM` 全球 T2 但 crypto ★5;`memory/`/`MCS` 全球對 HFT ★5 但杜拜當前需求低(HFT 未落地)。Dubai Phase(Part I)已經把這些重新加權。
+Implement early:
 
-## 11. 全球 Per-Vertical Tracks(若 pivot)
+- `HistoryRecorder`
+- `RandomizedSchedulerHarness`
+- `PropertyBasedConcurrentRunner`
+- `RaceDetectorHarness`
+- `LitmusRunner`
+- `FairnessStarvationChecker`
 
-- **HFT**(Citadel/HRT/Optiver/JS,C++ 為主):queue(SPSC)→ memory ordering → Lock 進階(MCS/Seqlock)→ arena/hazard → Disruptor。語言:C++ 主,Rust 成長。
-- **Crypto/L1**(Aptos/Solana/Monad,Rust 80%):STM(Block-STM)→ clock+crdt → parallel → queue。**直接用 Rust 寫 signal 最強**。
-- **AI Infra**(Anthropic/OpenAI/vLLM/Ray):parallel+AllReduce → Barrier 進階(NCCL)→ queue(vLLM scheduler)→ actor(Ray)→ ratelimit。語言:Python 主 + Rust 成長。
-- **FAANG**(Meta/Google/Cloudflare/Discord):全 Tier 0 → scope(context)→ map(sync.Map)→ Future → crdt(Figma/Notion)。語言:Go/Java/Python,Rust at Cloudflare/Discord。
+Defer:
 
-## 12. 方法論 / 來源
+- `DPORScheduleExplorer`
+- `ModelCheckingHarness`
+- full `HappensBeforeDetector`
 
-- 5 vertical 各 40-55 獨立 URL,合計 250+。
-- 完整證據(JD 引用、面試題、論文、per-package 評分)在 [docs/research/](docs/research/):`hft.md` / `crypto.md` / `ai_infra.md` / `faang.md` / `dubai.md`。
-- 每 6 個月應重評 — Tier 隨技術潮流變(2026:STM/AI infra 上升;lock-free 仍是穩定核心)。
+Why:
 
----
+- The repo already has several lock-free claims. The moat is not "I wrote CAS";
+  the moat is "I can falsify broken CAS algorithms."
 
-# Part III — Per-Package Priority 索引
+Deliverables:
 
-> 每個 package 的 TODO 開頭都有對應的 Priority block(Dubai Phase + ROI + R_corr + 全球 Tier)。
+- one deliberately broken queue/stack variant caught by the harness;
+- one reproducible litmus-style memory example;
+- one fairness/starvation benchmark for locks or semaphores.
 
-### Phase A(3 個月 · 廉價完成)
-- [syncx/TODO_LOCK.md](syncx/TODO_LOCK.md) · [syncx/TODO_SEMAPHORE.md](syncx/TODO_SEMAPHORE.md) · [syncx/TODO_LATCH.md](syncx/TODO_LATCH.md) · (Once、Barrier-Cyclic 在各自 TODO)
+## 6. Phase 2 — Low-Latency Queue Core
 
-### Phase B(3 個月 · deep showcase)★ portfolio 主力
-- [queue/TODO.md](queue/TODO.md) · [memory/TODO.md](memory/TODO.md) · [syncx/TODO_FUTURE.md](syncx/TODO_FUTURE.md)
+Goal: build the highest-signal queue path for HFT, exchanges, streaming engines,
+database shard communication, and Rust/C++ interviews.
 
-### Phase C(3 個月 · 杜拜 anchor)
-- [ratelimit/TODO.md](ratelimit/TODO.md)
+### 6.1 `queue/Index.md`
 
-### Phase D(6 個月 · crossbeam cluster)
-- [hazard/TODO.md](hazard/TODO.md) · [reclamation/TODO.md](reclamation/TODO.md) · [deque/TODO.md](deque/TODO.md) · [park/TODO.md](park/TODO.md)
+Implement in this order:
 
-### Phase E(6 個月 · 容器 + 並行)
-- [map/TODO.md](map/TODO.md) · [parallel/TODO.md](parallel/TODO.md) · [scope/TODO.md](scope/TODO.md)
+1. `LamportSPSCRing`
+2. complete scaffolded `LockFreeSPSC`
+3. `BlockingBoundedQueue`
+4. `LMAXDisruptor`
+5. `MulticastRingBuffer`
 
-### Later(6 個月以後 / 換 Rust 寫)
-- [syncx/TODO_STM.md](syncx/TODO_STM.md) · [rcu/TODO.md](rcu/TODO.md) · [arena/TODO.md](arena/TODO.md) · [actor/TODO.md](actor/TODO.md) · [clock/TODO.md](clock/TODO.md) · [crdt/TODO.md](crdt/TODO.md) · [syncx/TODO_CHANNEL.md](syncx/TODO_CHANNEL.md) · [syncx/TODO_BARRIERS.md](syncx/TODO_BARRIERS.md)
+Defer:
 
-### Lab(教學,不影響 career 排序)
-- [_lab/pattern/TODO.md](_lab/pattern/TODO.md) · [_lab/verify/TODO.md](_lab/verify/TODO.md) · [_lab/excercise/TODO.md](_lab/excercise/TODO.md)
+- `MichaelScottQueue` until `hazard/` or `reclamation/` exists.
+- `WaitFreeQueue`, `LockFreePriorityQueue`, and `TransferQueue` until later.
 
----
+Why:
 
-## 一句話總結
+- SPSC and Disruptor are the strongest low-latency signals in the Index.
+- `BlockingBoundedQueue` is lower moat, but it is the practical bridge to condvars,
+  backpressure, and FAANG/top-tier interview floors.
 
-> **3 個月**:`syncx 補完 + queue + memory + Future + ratelimit` → 投杜拜 crypto 職位 + 3 篇 Go↔Rust 對照 blog。
-> **6 個月**:加 `hazard/reclamation + deque + park + map + parallel`(crossbeam 全家桶)→ Rust 系統相關性拉滿。
-> **之後**:把 1-2 個用 **Rust 真的重寫**,從 correlated 升級成 proven。
+Deliverables:
+
+- `go test -race ./queue`;
+- benchmarks: channel vs MPSC vs MPMC vs padded MPMC vs SPSC;
+- p50/p95/p99 latency report, not just throughput;
+- false-sharing comparison report.
+
+### 6.2 `_lab/pattern/Index.md`
+
+Compose queue primitives into:
+
+- `Disruptor`
+- `PipelineBackpressure`
+- `BackpressurePolicyMatrix`
+- `ThreadPerCore`
+
+Why:
+
+- This turns primitives into recognizable architecture: market-data fan-out,
+  exchange sequencer, streaming stage pipeline, shard-per-core DB toy.
+
+Deliverables:
+
+- small runnable example per pattern;
+- one benchmark or stress case per high-value pattern;
+- explicit slow-consumer policy: block, drop-oldest, drop-newest, shed, degrade.
+
+## 7. Phase 3 — Rust Proof Track
+
+Goal: convert Go concept mastery into Rust-role credibility.
+
+Add a small `rust/` companion tree, starting with:
+
+1. SPSC ring using `UnsafeCell`, explicit `Send`/`Sync`, `Acquire`/`Release`, cache-line alignment.
+2. `Arc<T>` from scratch using relaxed increments, release decrement, acquire fence before drop.
+3. Treiber stack using `crossbeam-epoch`.
+
+Why:
+
+- `memory/Index.md`, `queue/Index.md`, `hazard/Index.md`, and `reclamation/Index.md`
+  transfer strongly to Rust, but Rust hiring still requires visible Rust code.
+
+Deliverables:
+
+- Rust tests;
+- short safety comments explaining each unsafe block;
+- side-by-side note: Go atomic model vs Rust `Ordering`.
+
+## 8. Phase 4 — Exchange / Streaming / Database Portfolio Labs
+
+Goal: produce non-CRUD artifacts aligned with HFT, crypto exchange, streaming, and
+database/storage targets.
+
+### 8.1 Exchange / Market Data Lab
+
+Use Index items:
+
+- `queue/LMAXDisruptor`
+- `queue/MulticastRingBuffer`
+- `_lab/pattern/Disruptor`
+- `_lab/pattern/ThreadPerCore`
+- `_lab/pattern/BackpressurePolicyMatrix`
+- `ratelimit/TokenBucket`
+- `ratelimit/LoadShedding`
+
+Build:
+
+- single-writer per-symbol matching toy;
+- SPSC/MPSC ingress;
+- sequenced event output;
+- Disruptor fan-out;
+- deterministic replay;
+- risk/admission gate.
+
+### 8.2 Database / Streaming Engine Lab
+
+Use Index items:
+
+- `_lab/pattern/ThreadPerCore`
+- `queue/LamportSPSCRing`
+- `queue/BlockingBoundedQueue`
+- `parallel/PipelineWithBackpressure`
+- `map/ShardedMutexMap`
+- `map/CopyOnWriteMap`
+- `rcu/RCUPointer` later
+- `arena/ThreadLocalArena` later
+
+Build:
+
+- shard-per-core key-value toy;
+- append-log toy;
+- group commit;
+- deterministic replay;
+- bounded pipeline with backpressure;
+- p99 report under slow-consumer or slow-disk simulation.
+
+## 9. Phase 5 — Interview Floor Without Diluting Moat
+
+Goal: cover frequent senior interview primitives after the hot-path artifacts are
+underway.
+
+### 9.1 `syncx/Index.md`
+
+Implement:
+
+- `MutexLock`
+- `MesaQueueCond`
+- `MesaNotifyListCond`
+- `Once`
+- `OnceValue`
+- `FuturePromise`
+- `CancellableFuture`
+
+Defer:
+
+- extra lock variants beyond `TTASLock`/`BackoffSpinLock`;
+- advanced barriers unless targeting AI training infra;
+- STM unless targeting crypto L1 / Block-STM.
+
+Why:
+
+- These build sleeping, wakeup, publication, and async-result competence.
+- Condvars unlock bounded blocking queues.
+- Futures unlock actor ask-pattern and structured async composition.
+
+### 9.2 `map/Index.md`
+
+Implement:
+
+- `ShardedMutexMap`
+- `StripedRWMutexMap`
+- `ThreadSafeLRU`
+- `CopyOnWriteMap`
+
+Defer:
+
+- `LockFreeOpenAddressingMap`
+- `SplitOrderedListMap`
+- `LockFreeSkipListMap`
+- `ConcurrentResizeProtocol`
+
+Why:
+
+- LRU and sharded map are common FAANG/top-tier infra floors.
+- Lock-free maps are deep, but unsafe to prioritize before reclamation.
+
+### 9.3 `ratelimit/Index.md`
+
+Implement:
+
+- `TokenBucket`
+- `SlidingWindowCounter`
+- `GCRA`
+- `CircuitBreaker`
+- `LoadShedding`
+- `Bulkhead`
+- `QueueDepthBackpressure`
+
+Why:
+
+- This is the fintech/exchange/API/inference admission-control layer.
+- It is not the deepest low-level moat, so do it after SPSC/Disruptor/benchmark work.
+
+## 10. Phase 6 — Runtime, AI / Agent Infra, and Parallel Systems
+
+Goal: target AI/agent infrastructure and high-throughput runtime roles without
+drifting into app-level AI.
+
+### 10.1 `scope/Index.md`
+
+Implement:
+
+- `CancellationToken`
+- `TokenTree`
+- `Nursery`
+- `ErrGroupClone`
+- `TaskGroup`
+- `BoundedTaskGroup`
+- `DeadlineScheduler`
+- `CooperativeCancellationBenchmark`
+
+Why:
+
+- Ownership of goroutine lifetime is a senior Go requirement.
+- This is the substrate for actor runtime, pipelines, and inference/request orchestration.
+
+### 10.2 `actor/Index.md`
+
+Implement:
+
+- `Mailbox`
+- `BoundedMailbox`
+- `ActorInterface`
+- `ActorRef`
+- `AskPattern`
+- `Scheduler`
+- `Supervisor`
+- `GracefulShutdown`
+
+Why:
+
+- Actor runtime matters for AI/agent infra and Ray-style systems.
+- Keep it minimal; do not build a large framework before queue/backpressure proof exists.
+
+### 10.3 `parallel/Index.md`
+
+Implement:
+
+- `ParallelMap`
+- `ParallelFor`
+- `WorkerPool`
+- `ParallelReduce`
+- `PipelineWithBackpressure`
+- `AllReduceRing`
+- `AllReduceTree`
+
+Defer:
+
+- `WorkStealingScheduler` until `deque/ChaseLevDeque` exists.
+- heavy graph/frontier work until the basics are measured.
+
+Why:
+
+- AI training and database/query engines need work/span, scan/reduce, pipeline,
+  and collective communication vocabulary.
+
+## 11. Phase 7 — Deep Lock-Free, Reclamation, and Read-Mostly Systems
+
+Goal: become credible for Rust/HFT/database internals beyond toy lock-free code.
+
+### 11.1 `hazard/Index.md`
+
+Implement:
+
+- `Domain`
+- `HazardRecord`
+- `Holder`
+- `ProtectReloadLoop`
+- `ResetProtection`
+- `RetireList`
+- `ScanAndReclaim`
+- `HazardPointerSpecTests`
+- `TreiberIntegration`
+
+Then:
+
+- `MichaelScottIntegration`
+
+### 11.2 `reclamation/Index.md`
+
+Implement:
+
+- `EpochBasedReclamation`
+- `ReclamationDomain`
+- `EBRGuard`
+- `LimboBags`
+- `TryAdvanceEpoch`
+- `StalledParticipantDetection`
+- `HazardVsEpochComparison`
+- `ReclamationStressHarness`
+
+Why:
+
+- `crossbeam-epoch` mental model is one of the strongest Rust systems signals.
+- It unlocks production-grade `queue/MichaelScottQueue`, Treiber upgrades, and lock-free maps.
+
+### 11.3 `stack/Index.md` and `queue/Index.md`
+
+Upgrade:
+
+- `stack/TreiberABAExperiment`
+- `stack/TreiberWithHazardPointers`
+- `stack/TreiberWithTaggedPointer`
+- `queue/MichaelScottQueue`
+
+### 11.4 `rcu/Index.md`
+
+Implement after EBR/QSBR basics:
+
+- `RCUReadSection`
+- `AssignPointer`
+- `Dereference`
+- `RCUPointer`
+- `URCU`
+- `SynchronizeRCU`
+- `QSBRRCU`
+- `RCUCorrectnessTests`
+
+Why:
+
+- RCU is high signal for read-mostly databases, routing tables, market-data
+  snapshots, AI routing, and kernel-style thinking.
+
+## 12. Phase 8 — Work Stealing, Allocators, and Optional Specialization
+
+### 12.1 `deque/Index.md`
+
+Implement:
+
+- `MutexDeque`
+- `BoundedRingDeque`
+- `ChaseLevDeque`
+- `WorkStealingInjector`
+- `WorkStealingPool`
+
+Why:
+
+- This unlocks `parallel/ForkJoin`, `parallel/WorkStealingScheduler`, and Rust
+  `crossbeam-deque` interview transfer.
+
+### 12.2 `arena/Index.md`
+
+Implement if targeting HFT/database/AI memory-management roles:
+
+- `BumpAllocator`
+- `TypedArena`
+- `ResettableRegion`
+- `ThreadLocalArena`
+- `SlabAllocator`
+- `AllocationBenchmarkSuite`
+
+Why:
+
+- Allocation latency and lifecycle control matter for HFT, storage engines,
+  parsers, queue nodes, actor messages, and vLLM-style block pools.
+
+### 12.3 Later / Niche Tracks
+
+Only pull these forward for a specific target:
+
+- `syncx/STM`: crypto L1 / Block-STM / OCC / MVCC roles.
+- `clock/HybridLogicalClock`, `clock/VectorClock`: distributed DB and replication roles.
+- `crdt/ORSet`, `crdt/LWWMap`, `crdt/DeltaStateReplication`: collaborative/distributed data roles.
+- advanced `syncx` barriers: AI training/NCCL collective path.
+- `_lab/excercise`: interview drills, not roadmap driver.
+
+## 13. 12-Week Execution Plan
+
+```text
+Week 01  memory: AtomicLoadStore, CAS, FetchAdd, HappensBeforeGraph, AcquireReleasePairing
+Week 02  memory: FalseSharing, PublicationSafety, ProgressGuarantees, LinearizationPoint, ABAProblem
+Week 03  queue: LamportSPSCRing / LockFreeSPSC + FIFO/full/empty/wraparound/race tests
+Week 04  benchmark/report: SPSC vs MPSC vs MPMC vs channel; padded vs unpadded; p50/p95/p99
+Week 05  _lab/verify: HistoryRecorder + RandomizedSchedulerHarness + RaceDetectorHarness
+Week 06  queue + pattern: LMAXDisruptor minimum + slow-consumer policy
+Week 07  pattern: ThreadPerCore + PipelineBackpressure + BackpressurePolicyMatrix
+Week 08  exchange lab: single-writer matching toy + sequenced replay
+Week 09  database/streaming lab: shard-per-core KV + append-log/group-commit toy
+Week 10  syncx/cond + queue/BlockingBoundedQueue
+Week 11  Rust companion: SPSC ring with UnsafeCell/Send/Sync/Acquire/Release proof
+Week 12  map/ThreadSafeLRU + ratelimit/TokenBucket + final benchmark/resume report
+```
+
+If time is limited to four weeks:
+
+```text
+memory core -> SPSC -> benchmark report -> Disruptor minimum
+```
+
+If targeting Rust roles immediately:
+
+```text
+memory core -> Go SPSC -> Rust SPSC -> Arc<T> -> Treiber + crossbeam-epoch
+```
+
+If targeting HFT / exchange:
+
+```text
+SPSC -> Disruptor -> ThreadPerCore -> matching lab -> p99 report -> Rust SPSC
+```
+
+If targeting database / streaming:
+
+```text
+memory -> SPSC -> ThreadPerCore -> append-log/group-commit -> LRU/cache -> RCU/EBR
+```
+
+If targeting AI / agent infra:
+
+```text
+queue scheduler -> scope -> FuturePromise -> actor mailbox -> bounded task group
+-> inference/agent gateway demo -> AllReduce only if training infra
+```
+
+## 14. Definition of Done
+
+Every roadmap item that moves from `[ ]` or `[~]` to `[x]` in an `Index.md` must have:
+
+- code;
+- unit tests;
+- at least one concurrency/race/stress test when relevant;
+- benchmark when performance is part of the claim;
+- a short note explaining invariants and linearization/progress where relevant;
+- Index status updated in the same change.
+
+Do not mark an item `[x]` just because a type exists.
+
+For lock-free items, also require:
+
+- identified linearization point;
+- progress guarantee statement;
+- memory-ordering explanation;
+- broken-variant or stress test where practical.
+
+For pattern labs, also require:
+
+- runnable example;
+- explicit backpressure/overflow/shutdown policy;
+- one benchmark or stress case if the pattern is performance-related.
+
+## 15. What Not To Do Yet
+
+- Do not implement more lock variants before SPSC, Disruptor, and p99 reports.
+- Do not start full CRDT/clock suites unless targeting distributed DB/collab roles.
+- Do not implement lock-free maps before reclamation exists.
+- Do not build a large actor framework before `scope/`, `FuturePromise`, and bounded mailboxes exist.
+- Do not build advanced barriers before deciding to target AI training/NCCL-style roles.
+- Do not call a primitive production-grade if `_lab/verify` cannot falsify at least one broken version.
+
+## 16. One-Line Summary
+
+```text
+Index-driven path:
+memory -> verify -> SPSC -> benchmarks -> Disruptor/ThreadPerCore
+-> exchange + database/streaming labs -> Rust proof -> cond/LRU/ratelimit floors
+-> scope/actor/parallel -> hazard/EBR/RCU/deque/arena specialization
+```
+
+This keeps the project aligned with your new Markdown structure and with the
+Rust/Go high-performance market target.

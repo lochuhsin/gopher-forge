@@ -1,0 +1,127 @@
+id	vertical	source_type	signal	url	repo_implication
+1	UAE-regulation	official-regulator	Dubai has licensed VASP/exchange activity, not just hype	https://www.vara.ae/en/licenses-and-register/public-register/	Use Dubai crypto/exchange as local entry path
+2	UAE-regulation	official-regulator	VARA rulebooks define licensed virtual asset activities	https://rulebooks.vara.ae/	Use exchange/risk/compliance context in portfolio demos
+3	UAE-crypto	official-careers	Binance maintains global engineering listings relevant to UAE/MENA	https://jobs.lever.co/binance	Track Go/C++/platform/trading roles periodically
+4	UAE-crypto	official-job	Binance platform roles mention observability and high-scale service operation	https://jobs.lever.co/binance/626efa02-4a6c-4ec6-8d3d-e8d7a1a91e2c	Prioritize observability around benchmarks and queue latency
+5	UAE-crypto	official-job	1inch Dubai Golang backend listing asks for Go sync, context, memory model, profiling	https://jobs.lever.co/1inch/758d4fb4-1e91-4199-a2bb-b706fce28fc9	Prioritize memory, SPSC, profiling, context cancellation
+6	UAE-AI	official-company	Core42 positions itself as sovereign AI infrastructure in UAE	https://www.core42.ai/	AI/cloud control-plane is a real UAE path
+7	UAE-AI	official-careers	Core42 careers surface AI cloud/HPC/platform roles	https://careers.g42.ai/core42/global/en/	Keep AI control-plane track but distinguish it from deep CUDA/NCCL work
+8	UAE-AI	official-careers	G42 careers aggregate UAE AI ecosystem jobs	https://careers.g42.ai/	Track Abu Dhabi AI infrastructure openings
+9	UAE-scale	official-company	Careem emphasizes regional scale engineering	https://www.careem.com/en-AE/engineering-at-careem/	Useful as fallback only if role is platform/performance, not CRUD
+10	UAE-fintech	official-company	Wio is a UAE fintech/digital bank employer	https://wio.io/careers/	Only target infra/platform/payment core roles
+11	UAE-crypto	official-careers	Bybit careers indicate crypto exchange hiring footprint	https://www.bybit.com/en/careers/	Track Go/Rust/C++ exchange backend roles
+12	UAE-crypto	official-careers	OKX careers indicate exchange/backend/platform hiring	https://www.okx.com/careers	Track backend/performance/trading roles
+13	UAE-crypto	official-careers	Crypto.com careers indicate exchange and platform hiring	https://crypto.com/careers	Track exchange services and market-data backend roles
+14	UAE-crypto	official-company	Deribit is licensed by VARA for derivatives exchange activity	https://www.deribit.com/	Crypto derivatives raises low-latency/trading relevance
+15	UAE-crypto	official-company	BitOasis is a local-regional crypto venue	https://bitoasis.net/	Lower performance signal, but local crypto context
+16	HFT	official-company	Optiver states tech powers millions of trades and core low-latency systems	https://optiver.com/working-at-optiver/tech-at-optiver/	Use HFT bar as moat target
+17	HFT	official-engineering	Optiver low-latency C++ systems content	https://optiver.com/working-at-optiver/career-hub/how-we-design-low-latency-cpp-systems/	Add C++/Rust companion if targeting pure HFT
+18	HFT	official-engineering	Optiver speed, scale, risk engineering content	https://optiver.com/working-at-optiver/career-hub/how-our-engineers-tackle-speed-scale-and-risk/	Matching/risk gate lab maps directly
+19	HFT-AI	official-engineering	Optiver ML in trading content links ML with latency and market data	https://optiver.com/working-at-optiver/career-hub/why-ml-in-trading-demands-a-different-kind-of-engineering/	AI track should be performance/runtime, not app AI
+20	HFT	official-company	HRT is a top low-latency trading target	https://www.hudsonrivertrading.com/	Use as global high-salary benchmark
+21	HFT	official-engineering	HRT engineering/interviewing blog emphasizes practical systems fundamentals	https://www.hudsonrivertrading.com/hrtbeat/engineering-and-interviewing-at-hrt/	Benchmark explanations matter as much as code
+22	HFT	official-careers	Citadel Securities careers	https://www.citadelsecurities.com/careers/	Target C++/systems depth for high-comp roles
+23	HFT	official-company	Citadel Securities technology context	https://www.citadelsecurities.com/	Use as high-comp performance-core benchmark
+24	HFT	official-careers	Jane Street careers	https://www.janestreet.com/join-jane-street/	High bar, less direct Go/Rust but strong systems reasoning
+25	HFT	official-company	XTX Markets careers	https://www.xtxmarkets.com/careers/	ML/trading/performance target outside UAE
+26	HFT	official-careers	Jump Trading careers	https://www.jumptrading.com/careers/	Strong C++/systems/high-performance benchmark
+27	HFT	official-company	IMC technology careers	https://www.imc.com/us/careers/technology/	Low-latency trading architecture signal
+28	HFT	official-careers	DRW software engineering listings	https://drw.com/work-at-drw/listings/?category=Software%20Engineering	Trading infra roles often combine C++/Python/Rust/Go
+29	HFT	official-careers	Headlands careers	https://www.headlandstech.com/careers/	Small high-performance trading firm benchmark
+30	HFT	official-careers	Tower Research open positions	https://www.tower-research.com/open-positions/	Trading infra target with low-latency expectations
+31	Crypto-market-making	official-company	Keyrock careers	https://keyrock.com/careers/	Crypto market making bridges Dubai crypto and HFT moat
+32	Crypto-market-making	official-company	Wintermute careers	https://wintermute.com/careers/	Crypto market making target for Rust/C++/low-latency
+33	Crypto-market-making	job-aggregator	Example Rust trading engineer in crypto market making	https://www.plexusrs.com/job/rust-trading-engineer-crypto-market-making-dubai-remote/	Rust code proof matters for this track
+34	HFT-UAE	job-aggregator	Example senior C++ quant trading role in Dubai	https://www.margo.work/hft-trading-jobs/senior-c-developer-quant-trading-dubai-uae-fully-onsite	Confirms UAE HFT exists but is C++-heavy and narrow
+35	HFT-UAE	job-aggregator	Example low-latency C++ UAE trading role	https://www.nahc.io/job/senior-c-developer-low-latency-trading-systems-dubai-abu-dhabi	C++/Rust companion has higher HFT value than Go-only
+36	Crypto-exchange	official-engineering	Coinbase market-data architecture uses LMAX Disruptor-style ring buffer	https://www.coinbase.com/blog/Optimizing-Producer-Consumer-Architecture-for-Market-Data-at-Coinbase	Prioritize SPSC/Disruptor/market-data fan-out
+37	Crypto-exchange	official-product	Coinbase Exchange targets high-frequency trading clients	https://www.coinbase.com/exchange	Exchange artifact should speak trading protocol/market-data
+38	Crypto-exchange	official-docs	dYdX docs describe exchange protocol architecture	https://docs.dydx.xyz/	Map matching/replay/orderbook concepts to crypto exchange
+39	Crypto-exchange	official-docs	dYdX order concepts	https://docs.dydx.xyz/concepts/trading/orders	Matching lab should include limit/market/cancel semantics
+40	Crypto-exchange	official-blog	dYdX Chain architecture context	https://dydx.exchange/blog/dydx-chain	Orderbook and validator architecture are not CRUD
+41	Crypto-exchange	official-engineering	Kraken Rust migration and engineering content	https://blog.kraken.com/product/engineering/oxidizing-kraken	Rust proof increases exchange credibility
+42	Crypto-L1	official-architecture	Solana Sealevel parallel execution	https://solana.com/news/sealevel---parallel-processing-thousands-of-smart-contracts	Concurrency model maps to STM/read-write sets
+43	Crypto-L1	official-job	Jito senior performance role cites Rust/C++ perf profile type work	https://jobs.solana.com/companies/jito-labs/jobs/64181890-senior-systems-engineer-performance	Rust/perf/eBPF/NUMA are high-salary moat signals
+44	Crypto-L1	paper	Block-STM paper	https://arxiv.org/abs/2203.06871	STM is niche but high moat for L1 track
+45	Crypto-L1	official-engineering	Aptos Block-STM parallel execution blog	https://aptoslabs.com/blog/tech-blog/block-stm-parallel-execution-engine	Move STM later unless L1 is target
+46	Crypto-L1	official-docs	Monad parallel execution docs	https://docs.monad.xyz/monad-arch/execution/parallel-execution	Parallel execution validates STM/read-set direction
+47	Crypto-L1	official-engineering	Sui Mysticeti consensus latency content	https://blog.sui.io/mysticeti-consensus-reduce-latency/	Distributed performance track requires consensus too
+48	Crypto-L1	official-company	Firedancer high-performance Solana client	https://firedancer.io/	C/C++/Rust high-performance crypto infra benchmark
+49	Crypto-L1	official-docs	Hyperliquid docs	https://hyperliquid.gitbook.io/hyperliquid-docs	HFT-influenced crypto systems context
+50	Crypto-infra	official-docs	Chainlink docs	https://docs.chain.link/	Distributed infra path, less low-latency than exchange core
+51	AI-performance	official-job	OpenAI training performance engineer lists distributed runtime, NCCL/MPI/UCX, GPU throughput	https://openai.com/careers/training-performance-engineer-san-francisco/	AI high-comp path needs HPC/performance, not generic agents
+52	AI-performance	official-blog	NVIDIA NCCL collectives overview	https://developer.nvidia.com/blog/fast-multi-gpu-collectives-nccl/	Advanced barriers/AllReduce map to AI training
+53	AI-performance	official-blog	NCCL double binary tree scaling	https://developer.nvidia.com/blog/massively-scale-deep-learning-training-nccl-2-4/	Tree/dissemination barriers become higher priority for AI track
+54	AI-performance	official-docs	NCCL user guide	https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/	Collective communication knowledge matters for high salary AI infra
+55	AI-performance	paper	Demystifying NCCL	https://arxiv.org/abs/2507.04786	Use as theory source for AllReduce report
+56	AI-inference	official-docs	vLLM PagedAttention docs	https://docs.vllm.ai/en/latest/design/paged_attention.html	Queue/memory/allocator patterns map to inference serving
+57	AI-inference	official-engineering	vLLM architecture/anatomy	https://blog.vllm.ai/	AI serving requires scheduling, KV cache, queueing
+58	AI-inference	paper	PagedAttention paper	https://dl.acm.org/doi/10.1145/3600006.3613165	Memory-block allocator and reclamation concepts matter
+59	AI-inference	paper	Orca continuous batching OSDI	https://www.usenix.org/conference/osdi22/presentation/yu	Ratelimit/queue scheduling useful only when tied to serving runtime
+60	AI-systems	paper	Ray OSDI	https://www.usenix.org/conference/osdi18/presentation/moritz	Actor package should be Ray-style runtime, not toy actor framework
+61	AI-training	paper	Megatron-LM paper	https://dl.acm.org/doi/10.1145/3458817.3476209	Parallel/AllReduce track for training infra
+62	AI-training	official-blog	PyTorch FSDP blog	https://pytorch.org/blog/introducing-pytorch-fully-sharded-data-parallel-api/	Distributed training runtime concepts
+63	AI-training	paper	ZeRO paper	https://arxiv.org/abs/1910.02054	Sharding and collective communication track
+64	AI-kernels	paper	FlashAttention paper	https://arxiv.org/abs/2205.14135	GPU memory hierarchy, not directly Go; useful for AI pivot
+65	AI-kernels	official-blog	OpenAI Triton	https://openai.com/index/triton/	AI performance path needs kernel/runtime understanding
+66	AI-cloud	official-company	CoreWeave cloud platform	https://www.coreweave.com/	GPU cloud control-plane path for Go/Kubernetes
+67	DB-performance	official-docs	Scylla shard-per-core architecture	https://www.scylladb.com/glossary/shard-per-core-architecture/	Thread-per-core and SPSC inter-shard queues are moat topics
+68	DB-performance	official-docs	Seastar tutorial	https://docs.seastar.io/master/tutorial.html	Shared-nothing future-based runtime maps to Rust/Go async reasoning
+69	DB-performance	official-company	Scylla benchmarks/product performance	https://www.scylladb.com/product/benchmarks/	Performance evidence and workload realism matter
+70	DB-performance	official-docs	TigerBeetle docs	https://docs.tigerbeetle.com/	Tail latency, deterministic safety, and fixed memory are high moat
+71	DB-performance	official-docs	TigerBeetle safety concepts	https://docs.tigerbeetle.com/concepts/safety/	High-performance finance infra is correctness plus performance
+72	DB-performance	official-docs	ClickHouse architecture	https://clickhouse.com/docs/development/architecture	Vectorized/high-throughput engine direction
+73	Streaming-performance	official-blog	Redpanda thread-per-core design	https://redpanda.com/blog/redpanda-thread-per-core	Thread-per-core strengthens SPSC/queue/disruptor priority
+74	DB-performance	official-product	Databricks Photon	https://www.databricks.com/product/photon	Query engine performance path
+75	DB-performance	official-docs	RocksDB memtable wiki	https://github.com/facebook/rocksdb/wiki/MemTable	Concurrent storage engine internals
+76	DB-performance	official-docs	TiKV architecture	https://tikv.org/docs/7.1/concepts/architecture/	Distributed storage engine context
+77	DB-performance	official-docs	FoundationDB docs	https://apple.github.io/foundationdb/	Distributed systems correctness path
+78	Streaming-performance	official-company	Redpanda architecture	https://redpanda.com/	Streaming infrastructure target outside CRUD
+79	Concurrency-docs	official-docs	Go memory model	https://go.dev/ref/mem	Phase 1 foundation
+80	Concurrency-docs	official-docs	Go sync/atomic docs	https://go.dev/pkg/sync/atomic/	Atomic API and memory model caveats
+81	Concurrency-docs	official-blog	Go pipelines and cancellation	https://go.dev/blog/pipelines	Scope/backpressure/cancellation track
+82	Concurrency-docs	official-blog	Go context pattern	https://go.dev/blog/context	Structured concurrency in Go
+83	Concurrency-docs	official-blog	Go share memory by communicating	https://go.dev/blog/codelab-share	Channel patterns are useful but lower moat than SPSC/Disruptor
+84	Rust-docs	official-docs	Rust atomic Ordering	https://doc.rust-lang.org/std/sync/atomic/enum.Ordering.html	Rust companion requires correct ordering vocabulary
+85	Rust-docs	official-docs	Rust Nomicon atomics	https://doc.rust-lang.org/nomicon/atomics.html	Rust unsafe concurrency foundation
+86	Rust-docs	official-docs	Rust Nomicon Send/Sync	https://doc.rust-lang.org/nomicon/send-and-sync.html	Rust companion must prove Send/Sync reasoning
+87	Rust-docs	official-docs	Crossbeam epoch	https://docs.rs/crossbeam-epoch/latest/crossbeam_epoch/	Hazard/EBR maps directly to Rust systems jobs
+88	Rust-docs	official-docs	Crossbeam queue	https://docs.rs/crossbeam-queue/latest/crossbeam_queue/	Queue package maps to Rust ecosystem
+89	Rust-docs	official-docs	Crossbeam deque	https://docs.rs/crossbeam-deque/latest/crossbeam_deque/	Chase-Lev deque for work stealing
+90	Rust-docs	official-docs	Tokio channels tutorial	https://tokio.rs/tokio/tutorial/channels	Future/channel concepts map to Rust async
+91	Rust-docs	official-docs	Tokio mpsc docs	https://docs.rs/tokio/latest/tokio/sync/mpsc/	Backpressure and bounded queues
+92	Rust-docs	official-docs	Tokio Semaphore docs	https://docs.rs/tokio/latest/tokio/sync/struct.Semaphore.html	Semaphore/rate control mapping
+93	Low-latency-canonical	official-docs	LMAX Disruptor user guide	https://lmax-exchange.github.io/disruptor/user-guide/	Disruptor should be Phase 1/2 for performance moat
+94	Low-latency-canonical	official-paper	LMAX Disruptor technical paper	https://lmax-exchange.github.io/disruptor/disruptor.html	Sequence barriers and wait strategies
+95	Low-latency-canonical	engineering-blog	Rigtorp spinlock	https://rigtorp.se/spinlock/	Spinlock explanation and benchmark style
+96	Low-latency-canonical	open-source	Rigtorp SPSCQueue	https://github.com/rigtorp/SPSCQueue	SPSC implementation benchmark reference
+97	Low-latency-canonical	open-source	Rigtorp MPMCQueue	https://github.com/rigtorp/MPMCQueue	Bounded MPMC reference
+98	Low-latency-canonical	open-source	moodycamel ConcurrentQueue	https://github.com/cameron314/concurrentqueue	High-performance MPMC reference
+99	Low-latency-canonical	official-docs	Boost lockfree spsc_queue	https://www.boost.org/doc/libs/release/doc/html/boost/lockfree/spsc_queue.html	SPSC queue API/reference design
+100	Lock-free-canonical	academic-reference	Michael-Scott queue pseudocode	https://www.cs.rochester.edu/research/synchronization/pseudocode/queues.html	Michael-Scott queue implementation target
+101	Memory-reclamation	paper	Hazard pointers paper PDF	https://www.cs.otago.ac.nz/cosc440/readings/hazard-pointers.pdf	Hazard pointer implementation target
+102	RCU-canonical	engineering-article	LWN RCU overview	https://lwn.net/Articles/262464/	RCU conceptual background
+103	RCU-canonical	kernel-doc	Linux RCU documentation	https://www.kernel.org/doc/Documentation/RCU/whatisRCU.txt	RCU implementation caveats
+104	Memory-model	kernel-doc	Linux memory barriers documentation	https://www.kernel.org/doc/Documentation/memory-barriers.txt	Deep memory-ordering reference
+105	Low-latency-canonical	engineering-blog	Mechanical Sympathy Disruptor analysis	https://mechanical-sympathy.blogspot.com/2011/07/dissecting-disruptor-why-its-so-fast.html	Explain why Disruptor is fast
+106	Concurrency-canonical	official-docs	Java VarHandle atomic access modes	https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/invoke/VarHandle.html	Useful comparison for memory ordering interviews
+107	FAANG-infra	official-engineering	Cloudflare Pingora is Rust infrastructure for high-volume programmable network services	https://blog.cloudflare.com/pingora-open-source/	Rust infra proof matters for top-tier performance roles
+108	FAANG-infra	official-engineering	Discord Go-to-Rust migration highlights GC/p99 pressure and Rust performance motivation	https://discord.com/blog/why-discord-is-switching-from-go-to-rust	Rust companion should emphasize latency and ownership, not syntax
+109	FAANG-infra	official-engineering	Confluent explains Kafka transactions/exactly-once semantics	https://www.confluent.io/blog/transactions-apache-kafka/	Streaming systems need correctness plus throughput
+110	Streaming-performance	official-docs	Apache Kafka semantics documentation	https://kafka.apache.org/documentation/#semantics	Streaming track needs delivery semantics and backpressure
+111	Streaming-performance	open-source	Aeron targets high-throughput, low and predictable latency messaging	https://github.com/aeron-io/aeron	Disruptor/streaming lab should include predictable latency framing
+112	Streaming-performance	open-source	Chronicle Queue is microsecond persistent messaging	https://github.com/OpenHFT/Chronicle-Queue	Append-log and group-commit lab maps to low-latency persistence
+113	Low-latency-networking	official-docs	DPDK programmer guide	https://doc.dpdk.org/guides/prog_guide/	Kernel-bypass is optional HFT depth after queue/memory
+114	Streaming-performance	official-docs	Apache Flink state backends	https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/state_backends/	Streaming/database track should understand state and checkpoint tradeoffs
+115	Streaming-performance	official-docs	NATS JetStream docs	https://docs.nats.io/nats-concepts/jetstream	Streaming systems require persistence, replay, and backpressure concepts
+116	DB-performance	official-docs	TiKV deep dive	https://tikv.org/deep-dive/introduction/	Database track can map to MVCC, storage, and distributed systems
+117	DB-performance	official-engineering	Facebook/Meta ZippyDB article	https://engineering.fb.com/2022/08/31/core-infra/zippydb/	FAANG infra includes storage engines, not just product backend
+118	Performance-canonical	official-engineering	Netflix Linux performance analysis article	https://netflixtechblog.com/linux-performance-analysis-in-60-000-milliseconds/	Performance engineers need systematic profiling vocabulary
+119	DB-performance	official-docs	FoundationDB architecture	https://apple.github.io/foundationdb/architecture.html	Distributed storage correctness and latency tradeoffs
+120	DB-performance	official-docs	RocksDB tuning guide	https://github.com/facebook/rocksdb/wiki/RocksDB-Tuning-Guide	Storage-engine performance and memory/cache tuning
+121	Streaming-performance	official-docs	Redpanda docs	https://docs.redpanda.com/current/home/	Streaming engine track, thread-per-core context
+122	AI-inference	open-source	vLLM GitHub repository	https://github.com/vllm-project/vllm	AI serving track must map queueing and memory management to real systems
+123	AI-inference	open-source	Hugging Face Text Generation Inference repository	https://github.com/huggingface/text-generation-inference	Rust/Python inference serving system reference
+124	AI-agent-infra	open-source	Ray GitHub repository	https://github.com/ray-project/ray	Actor/runtime package should be benchmarked against Ray-style ideas
+125	Rust-infra	open-source	Pingora GitHub repository	https://github.com/cloudflare/pingora	Rust async network-service artifact reference
+126	Rust-infra	official-docs	Tower service abstraction docs	https://docs.rs/tower/latest/tower/	Rust agent/API infra uses service/middleware abstractions
