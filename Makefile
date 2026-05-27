@@ -16,7 +16,7 @@ PPROF_PORT ?= 8080
 .PHONY: help \
         install-hooks \
         test test-short test-stress test-chaos \
-        bench bench-single bench-multi bench-scale bench-mpmc-queue bench-mpsc-queue \
+        bench bench-single bench-multi bench-scale bench-mpmc-queue bench-mpsc-queue bench-spsc-queue \
         bench-queue bench-stack bench-syncx \
         bench-cpu bench-mem bench-full \
         cpu-prof mem-prof clean
@@ -38,6 +38,7 @@ help:
 	@echo "  bench-scale    Run MultiThread at GOMAXPROCS=1,2,4,8 (scaling curve)"
 	@echo "  bench-mpmc-queue  Run MPMC queue benchmark (Mutex vs Unpadded vs Padded)"
 	@echo "  bench-mpsc-queue  Run MPSC queue benchmark (single consumer)"
+	@echo "  bench-spsc-queue  Run SPSC benchmarks: latency matrix + throughput + 1to1 work scenarios"
 	@echo ""
 	@echo "Per-package (stress matrix: GOMAXPROCS=1,2,4,8 × in-test contention):"
 	@echo "  bench-queue    Run all benchmarks in ./queue/..."
@@ -91,6 +92,9 @@ bench-mpmc-queue:
 
 bench-mpsc-queue:
 	go test -bench='BenchmarkMPSCQueue' $(COMMON) $(PKG)
+
+bench-spsc-queue:
+	go test -bench='BenchmarkSPSC(Queue|Throughput|1to1Uniform)' $(COMMON) $(PKG)
 
 bench-queue:
 	go test -bench=. $(COMMON) $(CPU_STRESS) $(PKG_QUEUE)

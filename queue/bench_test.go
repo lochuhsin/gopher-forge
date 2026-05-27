@@ -428,3 +428,291 @@ func benchQMPSC(b *testing.B, makeQ func() Queue[int], producers int) {
 	b.ReportMetric(float64(qPercentile(cLat, 0.99)), "deq-p99")
 	b.ReportMetric(float64(qPercentile(cLat, 0.999)), "deq-p999")
 }
+
+// BenchmarkSPSCQueue runs the single-producer / single-consumer scenario:
+// exactly one goroutine owns Enqueue, one owns Dequeue. This is the only
+// regime the dedicated SPSCQueue supports, and the one its minimal
+// synchronization (plain atomic load/store on head and tail, no CAS) is
+// built for. The general-purpose lock-free queues and the mutex queue are
+// driven through the same 1+1 setup as baselines.
+//
+// Design notes:
+//
+//  1. One producer, one consumer — no contention levels. Adding workers
+//     would break the SPSC contract (tail is producer-private, head is
+//     consumer-private), so there is nothing to oversubscribe; the whole
+//     point is the uncontended hand-off cost.
+//
+//  2. Hot spin retry (no Gosched) — both sides spin until success, so the
+//     two hot cache lines (head, tail) stay pinned and what we measure is
+//     the producer→consumer hand-off latency rather than scheduler noise.
+//
+//  3. Pre-fill to half capacity so neither side starves at the start.
+//
+//  4. Latency buffers are allocated before ResetTimer and the timer is
+//     stopped before merging, so B/op and allocs/op reflect only what the
+//     queue itself allocates in the hot loop (≈0 for these array-backed
+//     queues) — not the measurement scaffolding.
+//
+//  5. Every op samples time.Now (~30ns overhead); all targets pay it
+//     equally. Reports enq/deq p50/p99/p999 plus B/op, allocs/op, GC
+//     count and total GC pause.
+func BenchmarkSPSCQueue(b *testing.B) {
+	targets := []struct {
+		name string
+		make func() Queue[int]
+	}{
+		// MutexMPSC is byte-identical to MutexMPMC; both are listed so the
+		// matrix literally covers every queue implementation in the package.
+		{"MutexMPMC", func() Queue[int] { return NewMutexMPMC[int]() }},
+		{"MutexMPSC", func() Queue[int] { return NewMutexMPSC[int]() }},
+		{"MPMC-Unpadded", func() Queue[int] { return NewLockFreeMPMC[int]() }},
+		{"MPMC-Padded", func() Queue[int] { return NewLockFreePaddedMPMC[int]() }},
+		{"MPSC", func() Queue[int] { return NewLockFreeMPSC[int]() }},
+		{"SPSC", func() Queue[int] { return NewSPSCQueue[int]() }},
+		{"SPSC-Cached", func() Queue[int] { return NewCachedSPSCQueue[int]() }},
+	}
+
+	for _, t := range targets {
+		b.Run(t.name, func(b *testing.B) {
+			benchSPSCQ(b, t.make)
+		})
+	}
+}
+
+func benchSPSCQ(b *testing.B, makeQ func() Queue[int]) {
+	q := makeQ()
+	// Pre-fill to half capacity so neither side starves immediately.
+	for i := range BoundedQueueSize / 2 {
+		q.Enqueue(i)
+	}
+
+	// Allocated outside the timed region so they do not pollute B/op.
+	enqLat := make([]int64, b.N)
+	deqLat := make([]int64, b.N)
+
+	var memBefore, memAfter runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&memBefore)
+
+	var wg sync.WaitGroup
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for k := range b.N {
+			start := time.Now()
+			for !q.Enqueue(k) {
+			}
+			enqLat[k] = time.Since(start).Nanoseconds()
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for k := range b.N {
+			start := time.Now()
+			for {
+				if _, ok := q.Dequeue(); ok {
+					break
+				}
+			}
+			deqLat[k] = time.Since(start).Nanoseconds()
+		}
+	}()
+
+	wg.Wait()
+	b.StopTimer()
+
+	runtime.ReadMemStats(&memAfter)
+
+	reportSPSCLatency(b, enqLat, deqLat, &memBefore, &memAfter)
+}
+
+// reportSPSCLatency emits the package-standard 1-producer/1-consumer
+// columns: enq/deq p50/p99/p999, GC count and pause (B/op + allocs/op come
+// from the caller's ReportAllocs). Shared so every SPSC benchmark reports
+// an identical, comparable column set.
+func reportSPSCLatency(b *testing.B, enqLat, deqLat []int64, memBefore, memAfter *runtime.MemStats) {
+	slices.Sort(enqLat)
+	slices.Sort(deqLat)
+	b.ReportMetric(float64(qPercentile(enqLat, 0.50)), "enq-p50")
+	b.ReportMetric(float64(qPercentile(enqLat, 0.99)), "enq-p99")
+	b.ReportMetric(float64(qPercentile(enqLat, 0.999)), "enq-p999")
+	b.ReportMetric(float64(qPercentile(deqLat, 0.50)), "deq-p50")
+	b.ReportMetric(float64(qPercentile(deqLat, 0.99)), "deq-p99")
+	b.ReportMetric(float64(qPercentile(deqLat, 0.999)), "deq-p999")
+	b.ReportMetric(float64(memAfter.NumGC-memBefore.NumGC), "gc-count")
+	b.ReportMetric(float64(memAfter.PauseTotalNs-memBefore.PauseTotalNs)/1e6, "gc-pause-ms")
+}
+
+// BenchmarkSPSCThroughput measures raw producer→consumer throughput with
+// NO per-op time.Now() sampling.
+//
+// BenchmarkSPSCQueue calls time.Now() twice per op to record latency. On
+// Apple silicon each call is ~30-40ns, so ~60-80ns of clock overhead lands
+// on every op — larger than the queue operation itself (~20-40ns). That
+// instrument is coarser than the thing it measures, so it cannot resolve
+// which queue is faster (note the p50s quantize to 42 vs 83 ns, right at
+// the timer floor). Here ns/op is wall-time/b.N over a tight enqueue/
+// dequeue loop, so it reflects the queue, not the clock. No prefill: the
+// consumer simply spins until the producer gets ahead.
+func BenchmarkSPSCThroughput(b *testing.B) {
+	targets := []struct {
+		name string
+		make func() Queue[int]
+	}{
+		{"MPMC-Padded", func() Queue[int] { return NewLockFreePaddedMPMC[int]() }},
+		{"SPSC", func() Queue[int] { return NewSPSCQueue[int]() }},
+		{"SPSC-Cached", func() Queue[int] { return NewCachedSPSCQueue[int]() }},
+	}
+
+	for _, t := range targets {
+		b.Run(t.name, func(b *testing.B) {
+			q := t.make()
+			var wg sync.WaitGroup
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for k := range b.N {
+					for !q.Enqueue(k) {
+					}
+				}
+			}()
+
+			for range b.N {
+				for {
+					if _, ok := q.Dequeue(); ok {
+						break
+					}
+				}
+			}
+
+			wg.Wait()
+			b.StopTimer()
+		})
+	}
+}
+
+// spscWorkSink keeps simulated work from being optimized away. Benchmarks
+// run sequentially, so a plain global (no atomic) is fine.
+var spscWorkSink int
+
+// spscSimulateWork burns roughly `iters` units of CPU, standing in for the
+// per-item processing a real consumer does (matching, risk checks, ...).
+// The dependent multiply/xorshift chain costs ~2ns/iter on Apple silicon
+// (measured), which sets the Work= labels below.
+//
+//go:noinline
+func spscSimulateWork(iters int) int {
+	x := 1
+	for range iters {
+		x = x*1103515245 + 12345
+		x ^= x >> 7
+	}
+	return x
+}
+
+// BenchmarkSPSC1to1Uniform models ONE producer feeding ONE consumer over a
+// uniform (steady, one-item-at-a-time) arrival stream — the SPSC topology
+// an exchange feed-handler → matching-engine hot path actually uses. The
+// name states the workload: 1to1 = single producer/single consumer,
+// Uniform = steady arrival.
+//
+// The realism lever is the Work= axis: a real consumer does work per item
+// (matching, risk checks), not a bare Dequeue. As that work grows it
+// becomes the bottleneck, a backlog forms, and the hand-off cost stops
+// dominating.
+//
+// Reports the package-standard columns (enq/deq p50/p99/p999, gc, B/op,
+// allocs/op) so it lines up with BenchmarkSPSCQueue. Like every latency-
+// sampling benchmark here it pays ~30ns per time.Now(); at Work=None that
+// dominates and the percentiles quantize to the timer floor, but once
+// Work>0 the per-item cost is what the percentiles actually measure. For a
+// clock-free ns/op number, see BenchmarkSPSCThroughput.
+//
+// Reading it: at Work=None the queue IS the cost and MPMC's slot design
+// wins; by Work=Light/Heavy the work dominates and the queues converge —
+// at which point you choose a queue for tail determinism + zero GC (and to
+// dodge MPMC's multi-producer CAS contention), not for raw ns/op.
+func BenchmarkSPSC1to1Uniform(b *testing.B) {
+	impls := []struct {
+		name string
+		make func() Queue[int]
+	}{
+		{"MPMC-Padded", func() Queue[int] { return NewLockFreePaddedMPMC[int]() }},
+		{"SPSC", func() Queue[int] { return NewSPSCQueue[int]() }},
+		{"SPSC-Cached", func() Queue[int] { return NewCachedSPSCQueue[int]() }},
+	}
+	workLevels := []struct {
+		name  string
+		iters int
+	}{
+		{"Work=None", 0},    // bare queue op, no processing
+		{"Work=Light", 48},  // ~100ns/item
+		{"Work=Heavy", 240}, // ~500ns/item
+	}
+
+	for _, impl := range impls {
+		b.Run(impl.name, func(b *testing.B) {
+			for _, w := range workLevels {
+				b.Run(w.name, func(b *testing.B) {
+					benchSPSC1to1(b, impl.make, w.iters)
+				})
+			}
+		})
+	}
+}
+
+func benchSPSC1to1(b *testing.B, makeQ func() Queue[int], workIters int) {
+	q := makeQ()
+	// Allocated outside the timed region so they do not pollute B/op.
+	enqLat := make([]int64, b.N)
+	deqLat := make([]int64, b.N)
+	sink := 0
+
+	var memBefore, memAfter runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&memBefore)
+
+	var wg sync.WaitGroup
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for k := range b.N {
+			start := time.Now()
+			for !q.Enqueue(k) {
+			}
+			enqLat[k] = time.Since(start).Nanoseconds()
+		}
+	}()
+
+	// Consumer on the main goroutine: time only the Dequeue hand-off, then
+	// do the per-item work outside the timed region.
+	for k := range b.N {
+		start := time.Now()
+		for {
+			if _, ok := q.Dequeue(); ok {
+				break
+			}
+		}
+		deqLat[k] = time.Since(start).Nanoseconds()
+		sink += spscSimulateWork(workIters)
+	}
+
+	wg.Wait()
+	b.StopTimer()
+	runtime.ReadMemStats(&memAfter)
+	spscWorkSink = sink
+	reportSPSCLatency(b, enqLat, deqLat, &memBefore, &memAfter)
+}

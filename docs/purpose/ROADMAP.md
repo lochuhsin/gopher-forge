@@ -32,7 +32,8 @@ Local market calibration:
 
 External web calibration used for this version:
 
-- Go memory model: Go atomics synchronize and behave as sequentially consistent operations.
+- Go memory model: Go atomics synchronize and behave as sequentially consistent operations;
+  `sync/atomic` is an allowed low-level substrate for building higher primitives.
   <https://go.dev/ref/mem>
 - Coinbase market-data architecture: Go channel fan-out was replaced with an
   LMAX-style ring buffer to reduce allocation and latency.
@@ -47,6 +48,26 @@ External web calibration used for this version:
   <https://kueue.sigs.k8s.io/docs/concepts/dynamic_resource_allocation/>
 - Cloudflare Pingora: Rust async multithreaded high-performance network service framework.
   <https://blog.cloudflare.com/pingora-open-source/>
+- Java `java.util.concurrent`: synchronizers, blocking queues, exchangers,
+  phasers, concurrent maps, and structured concurrency provide a mature
+  cross-language primitive catalog.
+  <https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/package-summary.html>
+- C++20/26 concurrency: `atomic_wait`/`notify`, semaphores, latches, barriers,
+  stop tokens, and execution work identify portable primitive shapes that Go
+  can model with runtime semaphores, channels, and contexts.
+  <https://eel.is/c++draft/thread>
+- .NET Channels and TPL Dataflow: bounded-channel full modes and block graphs
+  make overload policy explicit.
+  <https://learn.microsoft.com/en-us/dotnet/api/system.threading.channels.boundedchannelfullmode>
+  <https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library>
+- Rust/Tokio ecosystem: Crossbeam queues/deques and Tokio `oneshot`, `watch`,
+  `broadcast`, semaphore, and notify primitives are useful naming and API
+  references for Go-compatible designs.
+  <https://docs.rs/crossbeam/latest/crossbeam/queue/struct.ArrayQueue.html>
+  <https://docs.rs/tokio/latest/tokio/sync/>
+- Go concurrent testing: `testing/synctest` gives deterministic-style support
+  for testing async/cancellation behavior and belongs in the verification lab.
+  <https://go.dev/blog/synctest>
 
 ## 1. Strategy
 
@@ -67,6 +88,51 @@ This repo should tell one story:
 
 Do not frame the project as a production replacement for `sync`, `crossbeam`,
 `parking_lot`, `tokio`, or `folly`. Frame it as a high-performance systems forge.
+
+### 1.1 Implementation Substrate Rules
+
+This roadmap means **build the primitive under study from lower-level
+substrates**. It does not mean wrapping an equivalent high-level standard
+library type and calling it done.
+
+Every primitive should declare its substrate:
+
+- ordinary Go fields and control flow;
+- `sync/atomic` operations such as load, store, add, swap, and CAS;
+- `go:linkname` runtime mechanisms when the item is explicitly about parking,
+  semaphores, notify lists, or runtime internals;
+- `unsafe` or assembly only for narrow experiments that cannot be expressed
+  through public Go APIs;
+- `sync.Mutex`, `sync.Cond`, channels, or `sync.Map` only as baselines,
+  correctness oracles, or when the item is explicitly studying monitor/channel
+  semantics.
+
+CAS is a boundary case. A real compare-and-swap cannot be built from ordinary Go
+load/store because the read-compare-write step must be indivisible. For roadmap
+items such as `CompareAndSwap`, `Once`, Treiber stack, MPSC/MPMC queues, or
+state machines, using `sync/atomic` CAS is the correct substrate. The work is to
+build the higher-level primitive above CAS, not to fake CAS with a mutex.
+
+Do not mark an item complete if it merely delegates to the equivalent production
+primitive, for example `type MyOnce struct { sync.Once }` or a queue that is just
+a channel wrapper, unless that item is explicitly a baseline comparison.
+
+### 1.2 Go Boundary for Cross-Language Primitives
+
+When borrowing from Java, C++, Rust, .NET, Kotlin, Erlang/OTP, or Linux, keep the
+Go boundary explicit:
+
+| External idea | Go-compatible interpretation | Boundary |
+|---|---|---|
+| `atomic_wait` / futex wait | `park.AtomicWaitNotify`, runtime-sema parker, or cond/channel fallback | Public Go has no direct futex or atomic wait API |
+| AQS-style queued synchronizers | `park.QueuedSynchronizer` plus explicit waiter nodes and wake policy | No thread identity or interrupt API; use `context.Context` for cancellation |
+| Structured concurrency | `scope.TaskGroup`, `ErrGroupClone`, `Nursery`, `ResultGroup` | Cooperative cancellation only; no preemptive goroutine cancellation |
+| Bounded channel overflow modes | `queue.BoundedChannelPolicy` and `_lab/pattern.BackpressurePolicyMatrix` | Policies must document whether they block, drop, fail, or replace |
+| `watch` / `broadcast` / `oneshot` channels | `syncx.WatchChannel`, `BroadcastChannel`, `OneShotChannel` | Delivery guarantees differ from FIFO queues and must be named |
+| Actor supervision | `actor.Supervisor`, `DeathWatchMonitor`, `RestartStrategy` | Go cannot kill goroutines safely; actors must cooperate with shutdown |
+| Work stealing | `deque.ChaseLevDeque`, `WorkStealingPool` | Go cannot pin goroutines portably; model workers explicitly |
+| Hazard pointers / EBR / RCU | explicit domains, holders, guards, and toy reclamation callbacks | Go GC hides real free/reuse; unsafe or simulated allocators are labs only |
+| Reentrant / owner-aware locks | avoid by default; use explicit owner tokens only if studied | Go lacks stable goroutine IDs |
 
 ## 2. Scoring Model
 
@@ -96,7 +162,7 @@ Run the repo in spirals, not as one deep linear tunnel.
 ```text
 Phase 1: Core pass
   Touch every important package once.
-  Build the smallest useful primitive or executable example.
+  Build the smallest useful primitive from the lowest practical substrate.
   Goal: vocabulary, API shape, tests, and mental model.
 
 Phase 2: Proof / benchmark / composition pass
@@ -138,8 +204,39 @@ Highest-value gaps:
 - `queue/Index.md`: `LockFreeSPSC` / `LamportSPSCRing`, `LMAXDisruptor`, and `MulticastRingBuffer` drive the low-latency path.
 - `_lab/verify/Index.md`: no checker/harness layer yet; benchmarks and correctness claims need this.
 - `_lab/pattern/Index.md`: `Disruptor`, `ThreadPerCore`, `PipelineBackpressure`, and `BackpressurePolicyMatrix` compose primitives into architecture.
+- `park/Index.md`: needs AQS-style queued waiters, cancellation-safe waiter removal,
+  and atomic-wait/notify models before sleeping locks, condvars, and futures are
+  credible.
+- `syncx/Index.md`: needs cross-language service primitives that are still
+  Go-shaped: context-aware waits, `SingleFlight`, keyed locks, watch/broadcast,
+  and one-shot completion.
+- `queue/Index.md`: needs bounded-channel overflow modes in addition to pure
+  non-blocking false/full returns; overload policy is part of the primitive.
+- `clock/Index.md` and `_lab/verify/Index.md`: deterministic clocks and
+  `testing/synctest` integration should move earlier so timeout/cancellation
+  tests do not rely on sleeps.
 - Rust proof is missing from the repo structure; add it after Go SPSC and memory notes.
 - `hazard/`, `reclamation/`, `rcu/`: planned; needed for deep Rust/HFT/DB credibility.
+
+Cross-language additions worth tracking:
+
+1. `park.QueuedSynchronizer`, `park.WaitNode`, and cancellation-safe waiter
+   removal. This is the missing substrate for fair locks, fair/weighted
+   semaphores, condvars, futures, and timed waits.
+2. `queue.BoundedChannelPolicy`, `LossyBoundedQueue`, `WatchChannel`, and
+   `BroadcastChannel`. These encode backpressure and slow-consumer policy
+   directly instead of hiding it in pattern examples.
+3. `scope.SingleFlightGroup`, `syncx.KeyedMutex`, and `syncx.KeyedSemaphore`.
+   These are practical hot-path primitives for duplicate suppression and
+   per-key isolation.
+4. `memory.StripedCounter` / LongAdder-style cells. This fills the gap between
+   a single hot atomic counter and full sharding.
+5. `clock.DelayQueue` / `DeadlineHeap` and `scope.DeadlineScheduler`. These
+   unlock deterministic timeout, retry, actor, and rate-limit tests.
+6. `_lab/pattern.DataflowBlocks`: buffer, transform, broadcast, batch, and join
+   blocks as a Go-shaped version of TPL Dataflow.
+7. `_lab/verify.SynctestHarness`: deterministic-style tests for context
+   cancellation, future completion, and wakeup races.
 
 ## 5. Dependency Graph
 
@@ -232,19 +329,19 @@ inspectable artifact or a deliberate scaffold with tests where appropriate.
 
 | Package | Phase 1 items | Mental model trained | Why now |
 |---|---|---|---|
-| `memory/` | `AtomicLoadStore`, `CompareAndSwap`, `FetchAddCounter`, `AcquireReleasePairing`, `PublicationSafety` | Visibility, ownership, publication, single-location atomicity | Upstream of every lock-free or wait-free claim |
-| `syncx/` | `Once`, `OnceValue`, `MesaQueueCond`, finish `MutexLock` scaffold, `WeightedSemaphore` | State machines, lost wakeups, publication, parking vs spinning | Covers senior interview floor and unlocks blocking queues |
-| `park/` | `Parker`, `PermitParker`, `SpuriousWakeupContract` | Register-before-sleep, wake-one vs broadcast, lost wakeups | Needed before custom sleeping primitives become credible |
-| `queue/` | `LamportSPSCRing`, finish `LockFreeSPSC`, SPSC tests, `BlockingBoundedQueue` baseline | FIFO, producer/consumer ownership, full/empty, backpressure | Highest shared signal for HFT, exchange, streaming, AI inference |
+| `memory/` | `AtomicLoadStore`, `CompareAndSwap`, `FetchAddCounter`, `StripedCounter`, `AcquireReleasePairing`, `PublicationSafety` | Visibility, ownership, publication, CAS substrate boundary, hot-counter contention | Upstream of every lock-free or wait-free claim |
+| `syncx/` | `Once`, `OnceValue`, `MesaQueueCond`, finish `MutexLock` scaffold, `WeightedSemaphore`, `SingleFlightGroup` | State machines, lost wakeups, publication, duplicate suppression, parking vs spinning | Covers senior interview floor and unlocks blocking queues |
+| `park/` | `Parker`, `WaitNode`, `QueuedSynchronizer`, `PermitParker`, `SpuriousWakeupContract` | Register-before-sleep, waiter queues, wake-one vs broadcast, lost wakeups | Needed before custom sleeping primitives become credible |
+| `queue/` | `LamportSPSCRing`, finish `LockFreeSPSC`, SPSC tests, `BlockingBoundedQueue`, `BoundedChannelPolicy` baseline | FIFO, producer/consumer ownership, full/empty, backpressure and drop policy | Highest shared signal for HFT, exchange, streaming, AI inference |
 | `stack/` | `TreiberABAExperiment`, invariants for existing Treiber stack | CAS loops, ABA, linearization point | Bridges current stack code to memory/reclamation learning |
 | `map/` | `ShardedMutexMap`, `ThreadSafeLRU` | Sharding, lock striping, recency mutation on reads | FAANG/top-tier interview floor |
 | `deque/` | `MutexDeque`, `BoundedRingDeque` | Double-ended ownership, baseline before Chase-Lev | Prepares work stealing without weak-memory complexity |
 | `ratelimit/` | `TokenBucket`, `SlidingWindowCounter`, `Bulkhead` | Admission control, local counters, bounded concurrency | Direct interview utility for FAANG, Dubai, fintech, inference |
-| `scope/` | `CancellationToken`, `ErrGroupClone`, `TaskGroup` | Goroutine lifetime ownership and failure propagation | Required Go senior mental model |
+| `scope/` | `CancellationToken`, `ErrGroupClone`, `TaskGroup`, `SingleFlightGroup` | Goroutine lifetime ownership, duplicate suppression, and failure propagation | Required Go senior mental model |
 | `actor/` | `Mailbox`, `ActorInterface`, `ActorRef`, minimal `AskPattern` | Isolated state, message ownership, request/reply | Prepares AI/agent runtime and actor-based systems |
 | `parallel/` | `ParallelMap`, `ParallelFor`, `WorkerPool`, `ParallelReduce` | Work/span, partitioning, synchronization points | Prepares scan, pipeline, AllReduce, and work stealing |
-| `_lab/verify/` | `HistoryRecorder`, `RaceDetectorHarness`, simple `RandomizedSchedulerHarness` | Correctness as workload, not intuition | Needed to falsify broken primitives |
-| `_lab/pattern/` | `MonitorObject`, `ShareByCommunicating`, minimal `PipelineBackpressure` | Primitive composition, bounded stages, shutdown policy | Turns primitives into architecture vocabulary |
+| `_lab/verify/` | `HistoryRecorder`, `RaceDetectorHarness`, `SynctestHarness`, simple `RandomizedSchedulerHarness` | Correctness as workload, not intuition | Needed to falsify broken primitives |
+| `_lab/pattern/` | `MonitorObject`, `ShareByCommunicating`, minimal `PipelineBackpressure`, `DataflowBlocks` scaffold | Primitive composition, bounded stages, shutdown policy | Turns primitives into architecture vocabulary |
 | `hazard/` | `Domain`, `HazardRecord`, `Holder` API sketch and tests for ownership rules | Announce-before-dereference | Prepare Treiber/Michael-Scott upgrades |
 | `reclamation/` | `ReclamationDomain`, `EBRGuard`, `LimboBags` scaffold | Reader epochs, deferred destruction | Prepare lock-free linked structures |
 | `rcu/` | `RCUReadSection`, `AssignPointer`, `Dereference` toy implementation | Read-mostly publish/snapshot model | Prepare COW/RCU maps and read-mostly routing tables |
@@ -257,6 +354,8 @@ Phase 1 deliverable rule:
 
 - one focused test file per implemented item;
 - a short invariant comment or note for every concurrent primitive;
+- an explicit substrate note: ordinary Go, `sync/atomic`, `go:linkname`, `unsafe`,
+  or baseline `sync` primitive;
 - no claim of production-grade behavior;
 - no advanced lock-free map or Michael-Scott queue before reclamation exists.
 
@@ -268,18 +367,18 @@ benchmarked, or composed into a recognizable system?
 | Package | Phase 2 items | Proof / benchmark / composition target |
 |---|---|---|
 | `memory/` | `FalseSharing`, `ProgressGuarantees`, `LinearizationPoint`, `ABAProblem`, `LitmusTests` | SPSC and Treiber explanation notes; litmus examples; false-sharing benchmark |
-| `syncx/` | `TTASLock`, `BackoffSpinLock`, `FairSemaphore`, `TimeoutSemaphore`, `CyclicBarrier`, `BarrierAction` | spin/ticket/MCS/TTAS benchmark; semaphore fairness/starvation tests; cond lost-wakeup tests |
-| `park/` | `WaiterQueue`, `TimeoutPark`, `WakerRegistration` | cancellation-safe wait queues and wakeup-race tests |
-| `queue/` | SPSC/channel/MPSC/MPMC p99 benchmark, `LMAXDisruptor`, `MulticastRingBuffer`, `LaggingReceiverPolicy` | p50/p95/p99 report; slow-consumer policy matrix; channel allocation comparison |
+| `syncx/` | `TTASLock`, `BackoffSpinLock`, `FairSemaphore`, `TimeoutSemaphore`, `ContextCond`, `KeyedMutex`, `KeyedSemaphore`, `CyclicBarrier`, `BarrierAction` | spin/ticket/MCS/TTAS benchmark; semaphore fairness/starvation tests; cond lost-wakeup tests; per-key isolation |
+| `park/` | `WaiterQueue`, `CancellationSafeWaiterRemoval`, `TimeoutPark`, `WakerRegistration`, `AtomicWaitNotify` | cancellation-safe wait queues and wakeup-race tests |
+| `queue/` | SPSC/channel/MPSC/MPMC p99 benchmark, `LossyBoundedQueue`, `LMAXDisruptor`, `MulticastRingBuffer`, `LaggingReceiverPolicy` | p50/p95/p99 report; slow-consumer policy matrix; channel allocation comparison |
 | `stack/` | `EliminationArray`, `TreiberWithTaggedPointer`, bug-catching tests | ABA demonstration and elimination-backoff contention benchmark |
 | `map/` | `StripedRWMutexMap`, `SyncMapClone`, `CopyOnWriteMap` | read-heavy vs write-heavy benchmark; weak iteration and snapshot semantics |
 | `deque/` | `ChaseLevDeque`, `StealPolicyExperiments` | owner-fast/thief-CAS model and work-stealing stress tests |
 | `ratelimit/` | `GCRA`, `CircuitBreaker`, `LoadShedding`, `QueueDepthBackpressure` | overload policy benchmark and failure-domain demo |
-| `scope/` | `TokenTree`, `BoundedTaskGroup`, `DeadlineScheduler`, `CooperativeCancellationBenchmark` | cancellation propagation and bounded concurrency under deadlines |
+| `scope/` | `TokenTree`, `BoundedTaskGroup`, `DeadlineScheduler`, `CooperativeCancellationBenchmark`, `SingleFlightGroup` benchmarks | cancellation propagation, duplicate suppression, and bounded concurrency under deadlines |
 | `actor/` | `BoundedMailbox`, `RequestReplyCorrelation`, `Supervisor`, `GracefulShutdown` | mailbox overflow, late replies, shutdown order |
 | `parallel/` | `ParallelScanHillisSteele`, `ParallelScanBlelloch`, `PipelineWithBackpressure`, `AllReduceRing`, `AllReduceTree` | work/span notes and NCCL-style ring vs tree comparison |
-| `_lab/verify/` | `LinearizabilityChecker`, `PropertyBasedConcurrentRunner`, `FairnessStarvationChecker`, `LitmusRunner` | deliberately broken queue/stack/lock cases caught by harnesses |
-| `_lab/pattern/` | `Disruptor`, `BackpressurePolicyMatrix`, `ThreadPerCore`, `HalfSyncHalfAsync` | runnable market-data or streaming examples with overload policy |
+| `_lab/verify/` | `LinearizabilityChecker`, `PropertyBasedConcurrentRunner`, `FairnessStarvationChecker`, `LitmusRunner`, `SynctestHarness` | deliberately broken queue/stack/lock cases caught by harnesses |
+| `_lab/pattern/` | `Disruptor`, `BackpressurePolicyMatrix`, `DataflowBlocks`, `ThreadPerCore`, `HalfSyncHalfAsync` | runnable market-data or streaming examples with overload policy |
 | `hazard/` | `ProtectReloadLoop`, `ResetProtection`, `RetireList`, `ScanAndReclaim` | hazard pointer protocol tests and Treiber integration prep |
 | `reclamation/` | `TryAdvanceEpoch`, `StalledParticipantDetection`, `QSBR`, `ReclamationStressHarness` | stalled reader and delayed reclamation stress cases |
 | `rcu/` | `SynchronizeRCU`, `QSBRRCU`, `RCUCorrectnessTests` | grace-period tests and read-mostly benchmark |
@@ -302,8 +401,8 @@ Phase 3 builds the high-moat artifacts that map directly to target verticals.
 |---|---|---|
 | `memory/` | `AtomicRefcount`, `TaggedVersionedPointers`, `FenceCheatsheet`, Rust ordering comparison | Rust `Arc<T>` and Rust SPSC safety proof |
 | `syncx/` | `CombiningTreeBarrier`, `TournamentBarrier`, `DisseminationBarrier`, `Phaser`, `FuturePromise`, `CancellableFuture`, selected `STM` | AI training/NCCL signal, async runtime signal, crypto L1 specialization |
-| `park/` | `FutexWaitWake`, `FutexMutex`, `AtomicWaitNotify`, `SchedulerHandoff` | sleeping mutex and runtime internals study |
-| `queue/` | `MichaelScottQueue`, `VyukovIntrusiveMPSC`, `SPMCRing`, optional `WaitFreeQueue` study | deep lock-free queue and runtime scheduler stories |
+| `park/` | `FutexWaitWake`, `FutexMutex`, `AtomicWaitNotify`, `QueuedSynchronizer`, `SchedulerHandoff` | sleeping mutex and runtime internals study |
+| `queue/` | `MichaelScottQueue`, `VyukovIntrusiveMPSC`, `SPMCRing`, `DelayQueue`, optional `WaitFreeQueue` study | deep lock-free queue, timer queue, and runtime scheduler stories |
 | `stack/` | `TreiberWithHazardPointers`, `LockFreeFreelist`, `FlatCombiningStack` | reclamation-backed Treiber proof |
 | `map/` | `LeftRightMap`, `RCUMap`, `LockFreeOpenAddressingMap`, `ConcurrentResizeProtocol` | database/vector/routing-table read-mostly systems |
 | `deque/` | `WorkStealingInjector`, `WorkStealingPool`, `ResizableChaseLevDeque` | parallel runtime and `crossbeam-deque` interview transfer |
@@ -312,7 +411,7 @@ Phase 3 builds the high-moat artifacts that map directly to target verticals.
 | `actor/` | `Scheduler`, `SupervisionTree`, `RestartStrategy`, `DeathWatchMonitor`, `Router` | Ray/actor/runtime control-plane story |
 | `parallel/` | `ParallelFilter`, `ParallelMergeSort`, `ParallelBFS`, `ForkJoin`, `WorkStealingScheduler`, `MapReduceLocal`, `ParallelFrontierEngine` | query engine, graph engine, AI scheduler story |
 | `_lab/verify/` | `HappensBeforeDetector`, `DPORScheduleExplorer`, `ModelCheckingHarness`, `ScheduleTraceVisualizer` | correctness-focused systems credibility |
-| `_lab/pattern/` | `Reactor`, `Proactor`, `LeaderFollowers`, `StagedEventDrivenArchitecture`, `BulkheadAndBreakerPattern`, `SupervisedWorkerPool` | production architecture vocabulary |
+| `_lab/pattern/` | `Reactor`, `Proactor`, `LeaderFollowers`, `StagedEventDrivenArchitecture`, `DataflowNetwork`, `BulkheadAndBreakerPattern`, `SupervisedWorkerPool` | production architecture vocabulary |
 | `hazard/` | `HazardPointerSpecTests`, `TreiberIntegration`, `MichaelScottIntegration` | safe lock-free linked structures |
 | `reclamation/` | `HazardVsEpochComparison`, `DeferredReferenceCounting`, `IntervalBasedReclamation` | Rust/C++ reclamation comparison |
 | `rcu/` | `URCU`, `CallRCU`, `RCUBarrier`, `SRCU`, `RCUList`, `RCUMap` | Linux/kernel-style read-mostly systems |
@@ -466,6 +565,7 @@ Every roadmap item that moves from `[ ]` or `[~]` to `[x]` in an `Index.md` must
 - unit tests;
 - at least one concurrency/race/stress test when relevant;
 - benchmark when performance is part of the claim;
+- a substrate statement describing what lower primitive it is built from;
 - a short note explaining invariants and linearization/progress where relevant;
 - Index status updated in the same change.
 
@@ -473,6 +573,8 @@ Do not mark an item `[x]` just because a type exists.
 
 For lock-free items, also require:
 
+- no mutex-based emulation of atomic ownership claims unless the item is a
+  deliberately named mutex baseline;
 - identified linearization point;
 - progress guarantee statement;
 - memory-ordering explanation;
@@ -487,6 +589,11 @@ For pattern labs, also require:
 ## 12. What Not To Do Yet
 
 - Do not implement more lock variants before SPSC, Disruptor, and p99 reports.
+- Do not implement reentrant or owner-aware locks unless the API uses explicit
+  owner tokens; Go has no stable goroutine ID.
+- Do not claim a portable futex or `atomic_wait` implementation through public
+  Go APIs. Use runtime internals, `sync.Cond`, or channels and name the
+  substrate honestly.
 - Do not start full CRDT/clock suites unless targeting distributed DB, crypto L1,
   collaborative systems, or causal-ordering interview prep.
 - Do not implement lock-free maps before reclamation exists.
