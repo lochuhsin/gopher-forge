@@ -13,7 +13,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Recommended build order from the merged TODOs: finish `MutexLock` and `LockFreeSPSC` adjacent work first, complete condition variables, then event/once/future, then advanced barriers, then STM as a later high-complexity topic.
 - Dependencies: `syncx/` depends on `memory/` conceptually and on `queue/` for `LockfreeSemaphore`; higher packages depend heavily on `syncx/`.
 - Career signal: this package is the foundation layer for the repo. Locks, semaphores, condvars, WaitGroup, and barriers are the vocabulary needed before data structures and patterns.
-- Transfer rule: include Java/C++ style primitives only when their core state machine ports cleanly to Go, such as `CountDownLatch`, `CyclicBarrier`, `Phaser`, futures, and semaphores.
+- Transfer rule: include named primitives only when their core state machine ports cleanly to Go, such as `CountDownLatch`, `CyclicBarrier`, `Phaser`, futures, and semaphores.
 
 ## Lock Family
 
@@ -59,6 +59,18 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Timeout cleanup races with unlock and can complicate fairness.
   - Scenarios: Request-scoped critical sections, overload avoidance, cancellation-aware primitives.
 
+- [ ] ScopedLockGuard
+  - Core Concept: Lock acquisition returns a guard object or closure scope that owns the unlock responsibility.
+  - Pros: Ties critical-section lifetime to a visible scope and prevents many forgotten-unlock bugs.
+  - Cons: Guard escape or nested scopes can accidentally make critical sections too large.
+  - Scenarios: Safe mutex wrappers, monitor methods, panic-safe cleanup, teaching access discipline.
+
+- [ ] PoisonableMutex
+  - Core Concept: If a goroutine fails while holding a lock, the protected state is marked suspect for later callers.
+  - Pros: Surfaces invariant corruption instead of silently continuing with possibly broken state.
+  - Cons: Poisoning policy can be noisy and recovery semantics must be explicit.
+  - Scenarios: Invariant-heavy shared state, transaction-like monitors, failure-aware lock design.
+
 - [x] RWMutexLock
   - Core Concept: A reader-writer lock lets multiple readers share the lock while writers require exclusivity.
   - Pros: Useful baseline via `sync.RWMutex`; demonstrates read-sharing API shape.
@@ -81,13 +93,13 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: A queue lock where each waiter spins on its predecessor's state rather than a shared lock word.
   - Pros: FIFO fairness and less shared cache-line bouncing than ticket locks.
   - Cons: Requires per-waiter nodes and careful node reuse rules.
-  - Scenarios: Compare CLH with MCS and Java AQS internals.
+  - Scenarios: Compare CLH with MCS and queued synchronizer internals.
 
 - [ ] OptimisticStampedRWLock
   - Core Concept: Readers can use optimistic stamps, validate later, or fall back to read/write locking.
   - Pros: Combines optimistic reads with explicit lock modes.
   - Cons: API is more complex and misuse can silently invalidate assumptions.
-  - Scenarios: Read-mostly structures, Java StampedLock comparison, seqlock-to-RWMutex bridge.
+  - Scenarios: Read-mostly structures, stamped optimistic reads, seqlock-to-RWMutex bridge.
 
 - [ ] BigReaderLock
   - Core Concept: Readers use sharded/per-CPU state while writers coordinate across all shards.
@@ -151,6 +163,12 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Can reduce throughput and creates head-of-line blocking for weighted acquires.
   - Scenarios: Service admission control, fairness labs, weighted semaphore comparison.
 
+- [ ] CloseableSemaphore
+  - Core Concept: Closing the semaphore wakes blocked acquirers and makes future acquires fail deterministically.
+  - Pros: Gives shutdown a first-class state instead of relying on external cancellation only.
+  - Cons: Release-after-close and permit leak semantics must be specified precisely.
+  - Scenarios: Worker pool shutdown, bounded service admission, async runtime primitive study.
+
 ## Latch, Event, and Once Family
 
 - [x] SpinLatch
@@ -167,7 +185,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 
 - [x] CountDownLatch
   - Core Concept: A one-shot count reaches zero through `Done` or `CountDown` calls, releasing all waiters and letting future waits pass immediately.
-  - Pros: Names the classic Java/C++ latch concept and maps cleanly to existing spin/channel latch work.
+  - Pros: Names the classic countdown latch concept and maps cleanly to existing spin/channel latch work.
   - Cons: Cannot be reset; reusable phases belong to barriers or phasers.
   - Scenarios: Start gates, completion gates, waiting for N workers or N events.
 
@@ -193,7 +211,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: Once signaled, all current and future waiters pass until reset.
   - Pros: Broadcast state is explicit and persistent.
   - Cons: Reset races are subtle when waiters are entering concurrently.
-  - Scenarios: Windows/.NET primitive comparison, phase gates.
+  - Scenarios: Persistent event gates, broadcast signals, phase gates.
 
 - [ ] AutoResetEvent
   - Core Concept: A signal releases one waiter and then automatically returns to non-signaled.
@@ -237,7 +255,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: A reusable barrier releases a fixed number of parties at the end of each generation.
   - Pros: Classic phase primitive and a clear user-facing name for sense/counting barrier behavior.
   - Cons: Sense-reversing behavior exists, but a full CyclicBarrier-style API with broken-barrier, timeout, and barrier-action semantics is not complete.
-  - Scenarios: Iterative solvers, worker phase loops, Java/C++ barrier comparison.
+  - Scenarios: Iterative solvers, worker phase loops, reusable barrier APIs.
 
 - [ ] BarrierAction
   - Core Concept: The last arriving participant runs a completion callback before the next phase is released.
@@ -249,7 +267,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: A reusable phase barrier lets parties register and deregister dynamically while tracking phase numbers.
   - Pros: More flexible than fixed-party barriers and latches.
   - Cons: State machine is larger and termination rules are easy to get wrong.
-  - Scenarios: Dynamic task sets, recursive parallel phases, Java Phaser concept in Go.
+  - Scenarios: Dynamic task sets, recursive parallel phases, variable-party phase coordination.
 
 - [~] CombiningTreeBarrier
   - Core Concept: Arrival combines up a tree and release propagates back down.
@@ -327,13 +345,37 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Timeout/cancellation and odd participant counts require careful rules.
   - Scenarios: Double-buffer swaps, genetic algorithms, pairwise handoff exercises.
 
+- [ ] OneShotChannel
+  - Core Concept: A single sender publishes exactly one value to one or more waiters, then the channel is permanently completed.
+  - Pros: Minimal async result primitive and a direct bridge between latch and future.
+  - Cons: Cancellation, late receivers, and double-send behavior must be specified.
+  - Scenarios: Task completion, request/reply, initialization handoff, promise internals.
+
+- [ ] WatchChannel
+  - Core Concept: Keep only the latest value plus a version counter; receivers wait until they observe a newer version.
+  - Pros: Efficient for state observation because slow receivers skip stale intermediate updates.
+  - Cons: Not a queue; consumers that need every event must use broadcast or FIFO.
+  - Scenarios: Config updates, health state, leader epoch, latest-price snapshots.
+
+- [ ] BroadcastChannel
+  - Core Concept: Each sent value is delivered to every active receiver, with per-receiver cursors over a shared buffer.
+  - Pros: Fan-out without manually copying a message into N queues.
+  - Cons: Slow receivers need lag/drop policy and buffer retention can grow.
+  - Scenarios: Pub/sub, actor event streams, market-data fan-out, invalidation messages.
+
+- [ ] ChannelCloseSemantics
+  - Core Concept: Closing a channel or queue wakes waiters and makes send/receive outcomes explicit.
+  - Pros: Prevents goroutine leaks and gives shutdown/error propagation a standard contract.
+  - Cons: Double close, send-after-close, and buffered-drain behavior must be defined.
+  - Scenarios: Pipeline shutdown, actor mailbox stop, producer disappearance, test cleanup.
+
 ## Future and STM Family
 
 - [~] FuturePromise
   - Core Concept: A write-once value wakes all waiters and lets later readers observe the published result.
   - Pros: Connects latch, channel close, and async result delivery.
   - Cons: `future.go` currently only declares the package.
-  - Scenarios: Async result handoff, RPC replies, Rust/Java/C++ future comparison.
+  - Scenarios: Async result handoff, RPC replies, future/promise state machines.
 
 - [ ] CompletableFuture
   - Core Concept: Compose futures with callbacks, map, bind, when-all, and when-any.
@@ -343,7 +385,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 
 - [ ] CancellableFuture
   - Core Concept: Pending futures can be cancelled and propagate cancellation downstream.
-  - Pros: Aligns with structured concurrency and Rust async drop semantics.
+  - Pros: Aligns async result delivery with structured cancellation.
   - Cons: Requires cooperative producer behavior and state races are tricky.
   - Scenarios: Request cancellation, timeouts, async runtime study.
 

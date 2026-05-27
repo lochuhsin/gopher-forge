@@ -11,7 +11,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Go parks goroutines, not OS threads, so runtime semaphores and channels are the practical educational substrate.
 - Recommended build order from the merged TODO: runtime-sema Parker wrapper, use it to finish `syncx.MutexLock`, then Linux futex demo, then permit-style Parker.
 - Dependencies: consumed by `syncx` locks, condvars, semaphores, latches, and futures.
-- Career signal: advanced; useful for explaining futexes, Java LockSupport/AQS, Go runtime parking, and C++20 atomic wait/notify.
+- Career signal: advanced; useful for explaining futexes, permit-based parking, runtime parking, and atomic wait/notify.
 - Scope rule: portable Go implementations should expose check-then-park and waiter-queue semantics; raw OS futex code is an optional Linux-specific lab.
 
 ## Implementation Checklist
@@ -32,11 +32,11 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: Linux futex waits only if the memory word still equals an expected value, combining check and sleep atomically.
   - Pros: Prevents wake-before-sleep races and is the foundation of sleeping mutexes.
   - Cons: Linux-specific and requires syscall/build-tag handling.
-  - Scenarios: Futex mutex, C++20 atomic wait/notify comparison, low-latency systems.
+  - Scenarios: Futex mutex, atomic wait/notify comparison, low-latency systems.
 
 - [ ] AtomicWaitNotify
   - Core Concept: Wait on an atomic word while it remains equal to an expected value, then notify one or all waiters after changing it.
-  - Pros: Portable concept shared by futexes and C++20 atomic wait/notify.
+  - Pros: Portable concept shared by futexes and modern atomic wait/notify APIs.
   - Cons: Go lacks a public direct primitive, so implementation must use channels, condvars, or runtime internals.
   - Scenarios: Mutex slow paths, semaphores, parking queues, cross-language primitive comparison.
 
@@ -48,9 +48,9 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 
 - [ ] PermitParker
   - Core Concept: `unpark` can pre-issue a single permit so a later `park` returns immediately.
-  - Pros: Avoids lost wakeups in Java LockSupport/AQS style designs.
+  - Pros: Avoids lost wakeups in permit-based wait/wake designs.
   - Cons: Permit semantics differ from counting semaphores and must not accidentally accumulate.
-  - Scenarios: Java AQS comparison, actor mailbox wakeups, task schedulers.
+  - Scenarios: Queued synchronizer comparison, actor mailbox wakeups, task schedulers.
 
 - [ ] WaiterQueue
   - Core Concept: Blocked waiters are stored in FIFO/LIFO/priority queues and woken according to policy.
@@ -63,6 +63,12 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Explains `select`-style multiplexing and cancellation races at the primitive level.
   - Cons: Atomic registration and deregistration across multiple queues is difficult.
   - Scenarios: Channel select internals, future-or-timeout waits, multi-resource admission.
+
+- [ ] WakerRegistration
+  - Core Concept: A task registers a wake handle, re-checks readiness, and sleeps only if the condition is still false.
+  - Pros: Captures the core no-lost-wakeup rule behind async tasks, futures, and notify primitives.
+  - Cons: Double registration, stale wakers, and cancellation cleanup are subtle.
+  - Scenarios: Future polling, one-shot completion, notify-based queues, custom schedulers.
 
 - [ ] TimeoutPark
   - Core Concept: Parking can return due to wakeup, timeout, cancellation, or spurious return.

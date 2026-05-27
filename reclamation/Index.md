@@ -8,7 +8,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 
 - Core invariant: freeing is safe only after proving no active participant can still hold a removed node pointer.
 - Main proof families from the merged TODO: reader announcement with hazard pointers, epoch pinning with EBR, explicit quiescent states with QSBR, and reference ownership with DRC.
-- EBR is the preferred next implementation here because it maps to Rust `crossbeam-epoch` and pairs naturally with linked lock-free queues.
+- EBR is the preferred next implementation here because it pairs naturally with linked lock-free queues and exposes stalled-reader memory retention.
 - Recommended build order from the merged TODO: EBR, then QSBR with `rcu/`, then DRC, then interval-based reclamation as a paper-level extension.
 - Dependencies: depends on `memory/`; consumed by `queue/`, `stack/`, `map/`, and `rcu/`.
 - Career signal: advanced but important; the best interview answer to "what breaks in your lock-free stack?" is ABA plus unsafe reclamation.
@@ -20,7 +20,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: Readers pin the current global epoch; retired nodes are freed only after enough epoch advancement proves old readers are gone.
   - Pros: Cheaper reader path than hazard pointers for many operations.
   - Cons: A stuck pinned reader can cause unbounded memory retention.
-  - Scenarios: Rust `crossbeam-epoch`, lock-free maps, Michael-Scott queue.
+  - Scenarios: Lock-free maps, Michael-Scott queue, epoch-protected linked structures.
 
 - [ ] ReclamationDomain
   - Core Concept: A domain owns participants, retired records, epoch state, and reclamation callbacks for related structures.

@@ -62,7 +62,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: Pair the pointer with a version tag so A -> B -> A changes are detectable by CAS.
   - Pros: Direct ABA defense without retire scanning.
   - Cons: Needs wide CAS or pointer/tag packing assumptions.
-  - Scenarios: C++ HFT interview topics, ABA alternatives.
+  - Scenarios: Low-level systems interviews, ABA alternatives.
 
 - [ ] FlatCombiningStack
   - Core Concept: Threads publish operations and one combiner executes a batch sequentially.

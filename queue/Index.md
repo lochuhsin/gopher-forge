@@ -68,7 +68,31 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: A zero-capacity queue transfers an item only when producer and consumer rendezvous.
   - Pros: Strong backpressure and no buffering ambiguity.
   - Cons: Matching, fairness, timeout, and cancellation rules are harder than buffered queues.
-  - Scenarios: CSP rendezvous, Java SynchronousQueue comparison, direct handoff worker pools.
+  - Scenarios: CSP rendezvous, zero-capacity channel comparison, direct handoff worker pools.
+
+- [ ] OwnershipTransferQueue
+  - Core Concept: Enqueue hands off logical ownership of an item to the queue and eventually to the consumer.
+  - Pros: Makes "share by communication" concrete and avoids shared mutable payloads.
+  - Cons: Payload aliasing outside the queue can violate the ownership story unless APIs restrict it.
+  - Scenarios: Actor messages, pipeline stages, work queues, resource handoff.
+
+- [ ] OneShotReplyQueue
+  - Core Concept: A request carries a one-use reply endpoint so the receiver can complete exactly one response.
+  - Pros: Gives request/reply a queue-native shape without exposing shared state.
+  - Cons: Late replies, timeout cancellation, and double replies must be handled.
+  - Scenarios: Actor ask pattern, RPC fan-out, completion services.
+
+- [ ] CloseableQueue
+  - Core Concept: A queue has an explicit closed state that wakes blocked producers/consumers and rejects future sends.
+  - Pros: Makes lifecycle and shutdown testable instead of relying on sentinel values.
+  - Cons: Buffered item drain, blocked sender failure, and close idempotency need exact rules.
+  - Scenarios: Pipeline shutdown, worker-pool stop, actor mailbox termination.
+
+- [ ] DisconnectedChannel
+  - Core Concept: Send and receive operations can detect that all opposite endpoints have disappeared.
+  - Pros: Prevents indefinite blocking when producers or consumers are gone.
+  - Cons: Endpoint reference counting and close races add complexity.
+  - Scenarios: MPSC channels, request/reply cancellation, service teardown.
 
 - [ ] TransferQueue
   - Core Concept: Producers can enqueue normally or wait until a consumer receives a specific item.
@@ -88,11 +112,17 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: A single stalled consumer can block reuse of the ring.
   - Scenarios: Market-data fan-out, event sourcing, Disruptor stepping stone.
 
+- [ ] LaggingReceiverPolicy
+  - Core Concept: A broadcast queue defines what happens when a receiver falls behind the retained buffer.
+  - Pros: Forces explicit choice between blocking producers, dropping old messages, or failing slow receivers.
+  - Cons: Each policy changes delivery guarantees and backpressure behavior.
+  - Scenarios: Broadcast channels, pub/sub streams, telemetry fan-out.
+
 - [ ] MichaelScottQueue
   - Core Concept: An unbounded linked MPMC queue uses CAS on `tail.next` and helping to advance lagging pointers.
   - Pros: Classic lock-free queue with no fixed capacity.
   - Cons: Safe node reclamation requires hazard pointers or EBR outside Go GC assumptions.
-  - Scenarios: Java `ConcurrentLinkedQueue` study, lock-free helping, reclamation integration.
+  - Scenarios: Unbounded linked queue study, lock-free helping, reclamation integration.
 
 - [ ] VyukovIntrusiveMPSC
   - Core Concept: Producers append intrusive nodes with one atomic exchange while the single consumer drains a linked list.

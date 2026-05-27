@@ -104,3 +104,21 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Makes difficult concurrency failures explainable after a test run.
   - Cons: Instrumentation can perturb timing and traces can be large.
   - Scenarios: Debugging lost wakeups, lock convoys, DPOR counterexamples.
+
+- [ ] MailboxProtocolChecker
+  - Core Concept: Generate message sequences and verify actor state machines handle calls, casts, timeouts, and unexpected messages.
+  - Pros: Finds mailbox protocol bugs that ordinary data-race tools cannot see.
+  - Cons: Requires a precise model for allowed messages and replies.
+  - Scenarios: Actor ask/cast tests, selective receive, late-reply races.
+
+- [ ] SupervisorFaultInjection
+  - Core Concept: Inject worker crashes and verify restart strategy, shutdown order, and restart intensity behavior.
+  - Pros: Turns fault tolerance into executable tests.
+  - Cons: Needs deterministic control over failures and worker side effects.
+  - Scenarios: Supervision trees, crash-only components, supervised worker pools.
+
+- [ ] DeterministicRuntimeModel
+  - Core Concept: Replace real scheduling and timers with a controlled runtime that explores wakeups, polls, and message delivery orders.
+  - Pros: Makes async/task races reproducible instead of relying on sleeps.
+  - Cons: Requires instrumented primitives and cannot model every runtime behavior.
+  - Scenarios: Future/waker tests, actor mailboxes, cancellation races, timeout logic.

@@ -11,7 +11,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Supervision turns failure into explicit policy: restart, stop, or escalate.
 - Recommended build order from the merged TODO: mailbox on `queue/LockFreeMPSC`, actor plus scheduler, ask pattern with `syncx.Future`, behavior switching, one-for-one supervisor, then selective receive.
 - Dependencies: consumes `queue/`, `scope/`, and `syncx.Future`; overlaps conceptually with `_lab/pattern` Active Object.
-- Career signal: strongest for AI infra/Ray-style systems and event-driven services, less central for low-level HFT.
+- Career signal: strongest for AI infra actor systems and event-driven services, less central for low-level HFT.
 - Scope rule: focus on transferable actor concepts: mailbox, ownership, supervision, routing, backpressure, lifecycle, and request/reply.
 
 ## Implementation Checklist
@@ -20,7 +20,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: Each actor receives messages through an inbox, typically MPSC because many senders target one actor.
   - Pros: Isolates actor state and maps naturally to `queue/LockFreeMPSC`.
   - Cons: Hot actors create mailbox contention and require backpressure.
-  - Scenarios: Actor runtime core, request routing, Ray-like workers.
+  - Scenarios: Actor runtime core, request routing, isolated workers.
 
 - [ ] PriorityMailbox
   - Core Concept: The mailbox orders messages by priority or control/data class instead of pure FIFO.
@@ -34,17 +34,35 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Long handlers block that actor's mailbox.
   - Scenarios: Game entities, exchange symbols, workflow objects.
 
+- [ ] IsolatedProcess
+  - Core Concept: A lightweight concurrent entity owns private state, communicates only by messages, and can fail independently.
+  - Pros: Combines state isolation with failure containment.
+  - Cons: Message copying, mailbox growth, and supervision policy become central design concerns.
+  - Scenarios: Massive actor counts, workflow engines, symbol-sharded services.
+
 - [ ] BehaviorSwitching
   - Core Concept: An actor can replace its receive function as protocol state changes.
   - Pros: Encodes state machines cleanly without exposing mutable state.
   - Cons: Hidden state transitions can make debugging harder.
-  - Scenarios: Handshake protocols, workflow stages, Erlang-style behaviors.
+  - Scenarios: Handshake protocols, workflow stages, protocol-state behaviors.
+
+- [ ] StateMachineActor
+  - Core Concept: Actor behavior is modeled as explicit states, events, actions, and state transitions.
+  - Pros: Makes protocol correctness easier to test than a large unstructured receive function.
+  - Cons: State explosion and timeout handling can make the model verbose.
+  - Scenarios: Connection handshakes, workflow engines, order lifecycle state machines.
 
 - [ ] ActorRef
   - Core Concept: A reference identifies an actor and exposes send/ask operations without exposing state.
   - Pros: Enables location transparency and API isolation.
   - Cons: Lifecycle and stale refs need explicit handling.
   - Scenarios: Local actor systems and future distributed actors.
+
+- [ ] ActorRegistry
+  - Core Concept: A registry maps stable names or keys to live actor references.
+  - Pros: Decouples senders from actor construction and supports dynamic lookup.
+  - Cons: Stale references, replacement races, and registry contention require policy.
+  - Scenarios: Service discovery, partition ownership, supervisor-managed children.
 
 - [ ] Scheduler
   - Core Concept: Actors with pending mailbox work are dispatched onto worker goroutines.
@@ -56,19 +74,67 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: Request/reply sends a message containing a promise or reply channel.
   - Pros: Makes actor calls composable with futures.
   - Cons: Timeouts and actor death must complete the pending reply.
-  - Scenarios: RPC-like actor methods and Ray remote calls.
+  - Scenarios: RPC-like actor methods and remote worker calls.
+
+- [ ] RequestReplyCorrelation
+  - Core Concept: Every request carries a correlation ID or reply handle so late or duplicate replies can be matched, ignored, or cancelled.
+  - Pros: Prevents stale replies from corrupting later requests.
+  - Cons: Requires cleanup for expired correlations and careful timeout handling.
+  - Scenarios: Actor ask, RPC multiplexing, process-alias style reply cancellation.
+
+- [ ] ReplyHandleRevocation
+  - Core Concept: A caller can invalidate a reply handle after timeout so a late response cannot be delivered to the wrong waiter.
+  - Pros: Fixes the common late-reply race in request/reply messaging.
+  - Cons: Requires the receiver to observe failed delivery and define cleanup behavior.
+  - Scenarios: Timed actor asks, RPC cancellation, fan-out first-success races.
 
 - [ ] Supervisor
   - Core Concept: Parent actors observe child failures and decide restart, stop, or escalate.
   - Pros: Encodes failure policy explicitly.
   - Cons: Restart semantics can duplicate side effects if messages are not idempotent.
-  - Scenarios: Erlang/OTP-style resilience and service supervision.
+  - Scenarios: Fault-tolerant actor services and restartable workers.
 
 - [ ] SupervisionTree
   - Core Concept: Supervisors form a hierarchy with restart strategies such as one-for-one, one-for-all, and escalate.
   - Pros: Makes failure containment and ownership visible.
   - Cons: Restart ordering and side-effect recovery are subtle.
   - Scenarios: Actor runtimes, long-running services, fault-isolation labs.
+
+- [ ] FailureLink
+  - Core Concept: Two actors are linked so failure in one propagates as a failure signal to the other.
+  - Pros: Makes dependent lifetimes explicit and supports fail-fast groups.
+  - Cons: Uncontrolled propagation can cascade failures too widely.
+  - Scenarios: Parent-child lifecycle coupling, paired workers, crash-only subsystems.
+
+- [ ] DeathWatchMonitor
+  - Core Concept: One actor observes another and receives a termination notification without being killed by that failure.
+  - Pros: Separates failure observation from failure propagation.
+  - Cons: Monitors must handle races where the target exits before registration completes.
+  - Scenarios: Supervisor observation, ask timeout cleanup, resource ownership tracking.
+
+- [ ] RestartStrategy
+  - Core Concept: A supervisor defines whether to restart only the failed child, all children, or the failed child plus later dependents.
+  - Pros: Encodes dependency topology directly in failure recovery.
+  - Cons: Wrong strategy can lose healthy work or leave dependent state inconsistent.
+  - Scenarios: One-for-one workers, pipeline stage groups, dependent actor chains.
+
+- [ ] RestartIntensityWindow
+  - Core Concept: A supervisor stops restarting after too many failures within a time window.
+  - Pros: Prevents endless crash loops from consuming resources.
+  - Cons: Thresholds must distinguish transient faults from permanent bugs.
+  - Scenarios: Fault containment, operational safeguards, resilience testing.
+
+- [ ] ChildRestartPolicy
+  - Core Concept: Each child declares whether it should always restart, restart only on failure, or never restart.
+  - Pros: Separates worker lifecycle intent from supervisor strategy.
+  - Cons: Misclassified children can either disappear silently or restart forever.
+  - Scenarios: Permanent services, temporary jobs, transient background workers.
+
+- [ ] ShutdownStrategy
+  - Core Concept: A supervisor gives children a graceful stop deadline before forcing termination.
+  - Pros: Bounds shutdown time while still allowing cleanup.
+  - Cons: Forced termination can interrupt side effects and leave external resources inconsistent.
+  - Scenarios: Rolling restarts, service shutdown, actor tree cleanup.
 
 - [ ] BoundedMailbox
   - Core Concept: Mailboxes have capacity and define overflow behavior: block, drop, replace, or dead-letter.
@@ -90,9 +156,27 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 
 - [ ] SelectiveReceive
   - Core Concept: An actor can scan or filter mailbox messages by pattern instead of strict FIFO.
-  - Pros: Models Erlang-style protocol handling.
+  - Pros: Models protocol handling where urgent or matching messages can bypass unrelated backlog.
   - Cons: Can starve skipped messages and complicates mailbox data structures.
   - Scenarios: Control messages, protocol state machines.
+
+- [ ] SelectiveReceiveSaveQueue
+  - Core Concept: Non-matching messages are preserved while the actor searches for a message matching the current receive pattern.
+  - Pros: Makes selective receive semantics precise and testable.
+  - Cons: Search is O(mailbox backlog) and skipped messages can accumulate.
+  - Scenarios: Protocol waits, priority control messages, mailbox starvation labs.
+
+- [ ] CallCastInfoLoop
+  - Core Concept: A server actor distinguishes synchronous calls, asynchronous casts, and untyped informational messages.
+  - Pros: Gives actor APIs a disciplined request/reply and fire-and-forget shape.
+  - Cons: Call timeouts, backpressure, and unexpected messages still need policy.
+  - Scenarios: Service actors, resource managers, request routers.
+
+- [ ] ExitSignalHandling
+  - Core Concept: Failure signals can either terminate an actor or be converted into ordinary messages for explicit handling.
+  - Pros: Supports both fail-fast and recovery-oriented designs.
+  - Cons: Converting failures to messages can hide serious invariant violations.
+  - Scenarios: Supervisor loops, graceful degradation, linked actor groups.
 
 - [ ] GracefulShutdown
   - Core Concept: Stop accepting new messages, drain or reject queued work, and notify dependents.

@@ -11,7 +11,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Hazard pointers shift cost to readers: each protected dereference pays store/fence/reload, while reclamation cost is amortized by retire-list scans.
 - Recommended build order from the merged TODO: global domain with fixed slots, dynamic holder registration, Treiber stack integration, then amortized reclaim thresholds.
 - Dependencies: depends on `memory/`; consumed by `stack/`, Michael-Scott queue in `queue/`, and optionally `rcu/`.
-- Career signal: strong for C++26/Rust systems interviews because it turns lock-free structures from toy examples into memory-safe designs.
+- Career signal: strong for systems interviews because it turns lock-free structures from toy examples into memory-safe designs.
 - Scope rule: focus on the portable hazard-pointer protocol; avoid depending on goroutine-local storage and require explicit holder ownership in Go.
 
 ## Implementation Checklist

@@ -28,11 +28,29 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Child registration/removal races require synchronization.
   - Scenarios: Service subsystems, actor supervision, nested request work.
 
+- [ ] FailurePropagationPolicy
+  - Core Concept: A scope defines whether child failure cancels siblings, restarts work, escalates to the parent, or is collected.
+  - Pros: Makes failure semantics part of the concurrency contract.
+  - Cons: Different policies fit different workloads, so a generic API can become ambiguous.
+  - Scenarios: Task groups, actor supervision, pipeline shutdown, service startup.
+
+- [ ] LinkedTaskGroup
+  - Core Concept: Tasks in a group are failure-linked, so one task's failure triggers a configured action for the rest.
+  - Pros: Captures all-for-one and fail-fast task lifetimes without requiring a full actor system.
+  - Cons: Can cancel healthy work if the dependency graph is too coarse.
+  - Scenarios: Parallel startup, pipeline stage groups, paired producer/consumer tasks.
+
 - [ ] Nursery
   - Core Concept: A scope owns child goroutines; `Wait` cannot return until all children exit.
   - Pros: Prevents goroutine leaks and makes lifetime explicit.
   - Cons: Requires every spawned task to go through the scope.
-  - Scenarios: Trio/Kotlin-style structured concurrency in Go.
+  - Scenarios: Structured concurrency, bounded task lifetime, leak prevention.
+
+- [ ] JoinOnScopeExit
+  - Core Concept: Leaving a scope automatically waits for all owned child tasks and runs cleanup.
+  - Pros: Turns task lifetime into a structural guarantee rather than caller convention.
+  - Cons: Blocking on scope exit can surprise callers if children ignore cancellation.
+  - Scenarios: Request-scoped workers, background cleanup, panic-safe task joins.
 
 - [ ] ErrGroupClone
   - Core Concept: Run tasks in parallel, return the first error, and cancel siblings.
@@ -75,6 +93,12 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Names per-task lifecycle without allowing orphaned goroutines.
   - Cons: Handles must not let callers outlive or detach work accidentally.
   - Scenarios: Async result composition, actor asks, fork/join tasks.
+
+- [ ] ResourceScope
+  - Core Concept: A scope owns both tasks and resources, releasing resources only after children stop using them.
+  - Pros: Prevents use-after-close races and makes shutdown ordering explicit.
+  - Cons: Requires APIs to register resources and define cleanup failure behavior.
+  - Scenarios: Worker pools with queues, actors with mailboxes, deadline-bound request resources.
 
 - [ ] CooperativeCancellationBenchmark
   - Core Concept: Compare polling frequency, callback wakeups, and blocked-operation cancellation.

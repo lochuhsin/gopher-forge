@@ -11,7 +11,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Resizing introduces old-buffer lifetime concerns, which tie this package to reclamation or Go GC assumptions.
 - Recommended build order from the merged TODO: mutex deque baseline, bounded ring deque, Chase-Lev, injector queue, work-stealing pool integration, then resize/ABA extensions.
 - Dependencies: `parallel/` fork-join consumes this package; advanced versions depend on `memory/` and optionally `reclamation/`.
-- Career signal: strong for work-stealing schedulers, Rust `crossbeam-deque`, Java ForkJoinPool, and parallel algorithm runtimes.
+- Career signal: strong for work-stealing schedulers, fork/join pools, and parallel algorithm runtimes.
 - Scope rule: prioritize portable work-stealing algorithms such as ABP and Chase-Lev; runtime-specific scheduler details should stay as comparison notes.
 
 ## Implementation Checklist
@@ -32,7 +32,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: The owner pushes and pops from the bottom, while stealers CAS from the top.
   - Pros: Fast owner path and proven work-stealing scheduler primitive.
   - Cons: Races around the last item and resizing require precise memory ordering.
-  - Scenarios: Fork/join pools, Go scheduler comparison, Rust crossbeam-deque study.
+  - Scenarios: Fork/join pools, scheduler comparison, work-stealing deque study.
 
 - [ ] ABPDeque
   - Core Concept: Arora-Blumofe-Plaxton work stealing uses a bounded array with owner bottom operations and thief top steals.

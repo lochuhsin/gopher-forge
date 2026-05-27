@@ -80,7 +80,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: Recursive tasks fork subtasks and join results, ideally backed by work stealing.
   - Pros: Natural for divide-and-conquer algorithms.
   - Cons: Requires `deque/` to avoid central scheduler bottlenecks.
-  - Scenarios: Parallel sort, tree processing, rayon/Java ForkJoin study.
+  - Scenarios: Parallel sort, tree processing, fork/join runtime study.
 
 - [ ] WorkStealingScheduler
   - Core Concept: Workers execute local tasks first and steal from peers when idle.

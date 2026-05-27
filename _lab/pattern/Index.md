@@ -17,7 +17,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 
 - [ ] MonitorObject
   - Core Concept: Encapsulate state, mutex, and condition variables inside an object whose methods enforce synchronization.
-  - Pros: Clear invariant boundary and maps to Java `synchronized`.
+  - Pros: Clear invariant boundary and keeps lock discipline inside the object.
   - Cons: Can hide lock ordering and block callers inside methods.
   - Scenarios: Bounded buffer, guarded state, condvar teaching.
 
@@ -26,6 +26,12 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Decouples caller from executor and isolates state.
   - Cons: Return values need futures and queue overload must be handled.
   - Scenarios: Async services, actor bridge, request serialization.
+
+- [ ] ShareByCommunicating
+  - Core Concept: Move ownership of data through messages instead of sharing mutable data behind locks.
+  - Pros: Makes race freedom a design property instead of a testing afterthought.
+  - Cons: Large payloads may require copying, immutable sharing, or reference ownership rules.
+  - Scenarios: Pipelines, actor messages, work handoff, staged services.
 
 - [ ] CSPPipelinePatterns
   - Core Concept: Compose channels into stages with `or-done`, `tee`, `bridge`, fan-in, and fan-out helpers.
@@ -93,6 +99,24 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Requires careful sharding and cross-core messaging.
   - Scenarios: HFT, Seastar/ScyllaDB, symbol-sharded matching.
 
+- [ ] CrashOnlyComponent
+  - Core Concept: Treat component failure as a normal signal: stop, discard local state, and restart from a supervisor-owned boundary.
+  - Pros: Keeps recovery logic explicit and avoids half-repaired state.
+  - Cons: Requires idempotent inputs or durable checkpoints to avoid duplicated side effects.
+  - Scenarios: Actor services, worker pools, pipeline stages, fault-injection labs.
+
+- [ ] SupervisedWorkerPool
+  - Core Concept: A supervisor owns a worker pool, restarts failed workers, and applies restart intensity limits.
+  - Pros: Combines practical pools with explicit fault containment.
+  - Cons: Restarting workers can duplicate in-flight work unless tasks are idempotent or acknowledged.
+  - Scenarios: Background jobs, ingestion workers, retryable task execution.
+
+- [ ] WatchBroadcastStatePattern
+  - Core Concept: Use a watch-style latest-value stream for state and a broadcast-style stream for every event.
+  - Pros: Teaches the difference between state observation and event delivery.
+  - Cons: Mixing the two incorrectly causes missed events or unnecessary backlog.
+  - Scenarios: Config propagation, leader changes, actor event subscriptions.
+
 - [ ] StagedEventDrivenArchitecture
   - Core Concept: Divide a service into stages connected by queues, each with its own resources and admission policy.
   - Pros: Makes resource bottlenecks explicit.
@@ -103,7 +127,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: Workers process local deques and steal from others when idle.
   - Pros: Balances irregular recursive work while preserving locality.
   - Cons: Depends on a correct Chase-Lev deque and scheduler policy.
-  - Scenarios: Fork/join, rayon-style execution, parallel algorithms.
+  - Scenarios: Fork/join, work-stealing execution, parallel algorithms.
 
 - [ ] BulkheadAndBreakerPattern
   - Core Concept: Combine semaphores, timeouts, circuit breakers, and load shedding to isolate failure domains.

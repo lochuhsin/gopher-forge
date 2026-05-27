@@ -8,10 +8,10 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 
 - Core invariant: synchronization is created by correct pairing, not by "using atomics" in isolation.
 - Release on the publishing side and acquire on the observing side are the recurring pattern behind queues, futures, OnceCell, seqlock validation, RCU, and reclamation.
-- Go exposes a stronger public atomic model than C++/Rust, so this package should teach the cross-language model explicitly rather than pretending Go has the same fine-grained API.
+- Go exposes a stronger public atomic model than many lower-level systems APIs, so this package should teach the portable ordering model explicitly.
 - Recommended build order from the merged TODO: ordering cheatsheet, Once/OnceCell, publication safety examples, double-checked locking case study, ABA notes, then litmus tests in `_lab/verify`.
 - Dependencies: no upstream dependencies; this package is upstream of `queue/`, `stack/`, `deque/`, `hazard/`, `reclamation/`, `rcu/`, and lock-free `map/`.
-- Career signal: highest for Rust/C++/HFT-style systems work because it gives the vocabulary for lock-free correctness.
+- Career signal: highest for low-level systems and HFT-style work because it gives the vocabulary for lock-free correctness.
 - Scope rule: keep this package about portable concepts: atomic operations, happens-before, publication, progress guarantees, ABA, and litmus tests; architecture-specific assembly fences belong only as explanatory notes.
 
 ## Implementation Checklist
@@ -67,7 +67,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - [ ] SeqCstOrdering
   - Core Concept: Sequential consistency places all SeqCst atomics into one global order.
   - Pros: Easiest model to reason about and Go's public atomic operations effectively live here.
-  - Cons: Can over-synchronize and hide which ordering is actually required in C++/Rust.
+  - Cons: Can over-synchronize and hide which ordering is actually required in weaker memory-order APIs.
   - Scenarios: Teaching baseline, first implementation before weakening to acquire/release.
 
 - [ ] DataRaceAndDRFSC
@@ -76,11 +76,53 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Racy programs may still appear to work, which makes discipline and tooling necessary.
   - Scenarios: Race detector labs, happens-before education, reviewing unsynchronized shared memory.
 
+- [ ] OwnershipAndAliasingDiscipline
+  - Core Concept: Mutable state has exactly one active owner, or every shared access goes through an explicit synchronization protocol.
+  - Pros: Prevents accidental shared mutation and gives a clean design rule before reaching for atomics.
+  - Cons: Ownership boundaries can be inconvenient for graph-shaped data and long-lived shared caches.
+  - Scenarios: Message passing, actor state isolation, handoff queues, safe API design.
+
+- [ ] OwnershipTransfer
+  - Core Concept: Sending a value transfers responsibility for mutation and lifetime to the receiver instead of sharing mutable aliases.
+  - Pros: Eliminates many locks by construction and makes handoff points explicit.
+  - Cons: Requires copy, move, or clear ownership conventions for values referenced elsewhere.
+  - Scenarios: Channels, actor messages, pipeline stages, work queues.
+
+- [ ] TransferabilityContract
+  - Core Concept: A type or resource declares whether it can safely move between concurrent execution contexts.
+  - Pros: Catches thread-affinity and non-thread-safe resource mistakes at API boundaries.
+  - Cons: Go cannot enforce this statically for arbitrary values, so examples need runtime checks or documentation discipline.
+  - Scenarios: File/socket ownership, event-loop resources, actor-local state, non-shareable handles.
+
+- [ ] ShareabilityContract
+  - Core Concept: A type or resource declares whether shared references may be used concurrently and under which synchronization rules.
+  - Pros: Separates "can move ownership" from "can be shared by many readers/writers."
+  - Cons: Requires clear invariants around interior mutation and protected fields.
+  - Scenarios: Read-only immutable state, atomic counters, mutex-protected caches, concurrent maps.
+
+- [ ] GuardedMutation
+  - Core Concept: Shared data may be mutated only while holding a guard that represents the active synchronization permission.
+  - Pros: Couples access rights to lock lifetime and reduces forgotten-unlock style bugs.
+  - Cons: Long-lived guards can accidentally expand critical sections or deadlock.
+  - Scenarios: Mutex-protected maps, monitor objects, scoped lock helpers, protected caches.
+
+- [ ] InteriorMutabilityBoundary
+  - Core Concept: Mutation through a shared handle is allowed only when the object internally enforces atomic, lock, or single-owner rules.
+  - Pros: Makes hidden synchronization explicit in type and API design.
+  - Cons: Easy to abuse if callers cannot see whether operations are atomic, locked, or merely unsafe.
+  - Scenarios: Atomic cells, protected values, actor references, lazily initialized state.
+
+- [ ] ThreadAffinity
+  - Core Concept: Some state is valid only on its owning worker, event loop, or actor and must not be used elsewhere.
+  - Pros: Preserves locality and avoids accidental unsynchronized access.
+  - Cons: Requires handoff or proxy APIs when other workers need access.
+  - Scenarios: UI/event-loop state, thread-per-core shards, actor-local resources, scheduler-owned queues.
+
 - [ ] FenceCheatsheet
   - Core Concept: Map compiler barriers, CPU fences, acquire loads, release stores, and full barriers across x86 and ARM.
   - Pros: Makes architecture differences concrete.
   - Cons: Go does not expose fine-grained public fence APIs, so examples need careful framing.
-  - Scenarios: HFT/Rust/C++ interview prep and ARM64 correctness discussion.
+  - Scenarios: HFT interview prep, low-level systems review, and ARM64 correctness discussion.
 
 - [ ] FalseSharing
   - Core Concept: Independent hot variables on the same cache line invalidate each other under concurrent writes.
@@ -96,7 +138,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 
 - [ ] DoubleCheckedLocking
   - Core Concept: Fast-path check, slow-path lock, initialize once, and publish with correct ordering.
-  - Pros: Shows why old Java DCL was broken and how acquire/release fixes it.
+  - Pros: Shows why unsafely published lazy initialization is broken and how acquire/release fixes it.
   - Cons: Easy to implement incorrectly if the state flag and value publication are separated poorly.
   - Scenarios: Singleton, lazy cache, OnceCell, config loading.
 
@@ -110,7 +152,13 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: Increment references with relaxed ordering and use release decrement plus acquire fence before destruction.
   - Pros: Explains `Arc`/`shared_ptr` internals and safe object lifetime.
   - Cons: Subtle because increment and destruction use different ordering strengths.
-  - Scenarios: Rust `Arc`, C++ shared ownership, reclamation internals.
+  - Scenarios: Shared ownership, resource lifetime management, reclamation internals.
+
+- [ ] WeakReference
+  - Core Concept: A non-owning handle observes an object only if it can be upgraded while a strong reference still exists.
+  - Pros: Breaks ownership cycles and separates observation from lifetime extension.
+  - Cons: Upgrade races and object finalization semantics must be precise.
+  - Scenarios: Actor registries, cache entries, shared ownership graphs, resource managers.
 
 - [ ] ProgressGuarantees
   - Core Concept: Classify algorithms as blocking, obstruction-free, lock-free, or wait-free.
@@ -134,7 +182,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Core Concept: Pair a pointer or index with a version so repeated addresses still produce different CAS values.
   - Pros: Classic ABA mitigation and useful for bounded rings or index-based structures.
   - Cons: Wide CAS or careful packing may be unavailable or non-portable in Go.
-  - Scenarios: ABA labs, freelists, bounded deques, C++/Rust comparison.
+  - Scenarios: ABA labs, freelists, bounded deques, tagged-index comparison.
 
 - [ ] LitmusTests
   - Core Concept: Small programs expose allowed reorderings such as store buffering and load buffering.
