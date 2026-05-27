@@ -79,6 +79,14 @@ func (t *TicketLock) Unlock() {
 	t.serving.Add(1)
 }
 
+type SeqLock struct{}
+
+func (s *SeqLock) Lock() {
+}
+
+func (s *SeqLock) Unlock() {
+}
+
 // MCSLock is a queue-based FIFO spinlock (Mellor-Crummey & Scott, 1991).
 // Contenders enqueue a node onto a lock-free linked list and spin on a flag
 // local to their own node, so each waiter's spin variable lives on a cache
@@ -144,15 +152,12 @@ func (m *MCSLock) Unlock() {
 	next.locked.Store(false)
 }
 
-type RCULock struct {
-}
+type RCULock struct{}
 
 func (r *RCULock) Lock() {
-
 }
 
 func (r *RCULock) Unlock() {
-
 }
 
 type MutexLock struct {
@@ -161,11 +166,9 @@ type MutexLock struct {
 }
 
 func (m *MutexLock) Lock() {
-
 }
 
 func (m *MutexLock) Unlock() {
-
 }
 
 type RWMutexLock struct {
@@ -186,5 +189,4 @@ func (r *RWMutexLock) RLock() {
 
 func (r *RWMutexLock) RUnlock() {
 	r.mu.RUnlock()
-
 }

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Auto-format staged Go files. Uses goimports if available, else gofmt.
+set -euo pipefail
+
+files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.go' || true)
+[ -z "$files" ] && exit 0
+
+formatter=gofmt
+command -v goimports >/dev/null 2>&1 && formatter=goimports
+
+echo "$files" | xargs "$formatter" -w
+echo "$files" | xargs git add

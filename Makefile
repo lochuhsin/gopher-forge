@@ -14,6 +14,7 @@ CPU_STRESS := -cpu=1,2,4,8
 PPROF_PORT ?= 8080
 
 .PHONY: help \
+        install-hooks \
         test test-short test-stress test-chaos \
         bench bench-single bench-multi bench-scale bench-mpmc-queue bench-mpsc-queue \
         bench-queue bench-stack bench-syncx \
@@ -21,6 +22,9 @@ PPROF_PORT ?= 8080
         cpu-prof mem-prof clean
 
 help:
+	@echo "Setup:"
+	@echo "  install-hooks  Point git at .githooks/ (auto-format staged Go files)"
+	@echo ""
 	@echo "Tests (concurrency correctness):"
 	@echo "  test           Run all tests with -race (recommended default)"
 	@echo "  test-short     Run -race tests, skip slow chaos test"
@@ -52,6 +56,11 @@ help:
 	@echo "Variables:"
 	@echo "  BENCHTIME      Per-benchmark duration   (default: 3s)"
 	@echo "  PPROF_PORT     Port for pprof web UI    (default: 8080)"
+
+install-hooks:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/*
+	@echo "Hooks installed. Staged .go files will auto-format on commit."
 
 test:
 	go test -race -v $(PKG)
