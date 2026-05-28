@@ -79,71 +79,6 @@ func (t *TicketLock) Unlock() {
 	t.serving.Add(1)
 }
 
-// MCSLock is a queue-based FIFO spinlock (Mellor-Crummey & Scott, 1991).
-// Contenders enqueue a node onto a lock-free linked list and spin on a flag
-// local to their own node, so each waiter's spin variable lives on a cache
-// line private to one core.
-//
-// Pros:
-//   - Each waiter spins on its own cache line. Unlock invalidates exactly one
-//     remote cache line — the next waiter's `locked` flag — giving O(1)
-//     coherence traffic per handoff and O(N) total to drain a queue of N
-//     waiters. Directly fixes TicketLock's O(N^2) cache storm.
-//   - Strict FIFO fairness, inherited from the queue order.
-//   - Scales well on many-core machines; this is the design behind Linux's
-//     qspinlock and Java's AQS (CLH variant).
-//
-// Cons:
-//   - More complex: a per-acquisition queue node plus careful handling of the
-//     enqueue/dequeue races, in particular the "last waiter leaving" case
-//     where the tail pointer must be CAS'd back to nil and the predecessor
-//     must wait for a successor's `next` pointer to be published.
-//   - Higher constant cost than TicketLock at low contention (extra atomics
-//     and a heap-allocated node per Lock call).
-type MCSLock struct {
-	tail  atomic.Pointer[mcsNode]
-	owner atomic.Pointer[mcsNode]
-}
-
-type mcsNode struct {
-	next   atomic.Pointer[mcsNode]
-	locked atomic.Bool
-}
-
-func (m *MCSLock) Lock() {
-	node := &mcsNode{}
-	node.locked.Store(true)
-
-	pred := m.tail.Swap(node)
-	if pred != nil {
-		pred.next.Store(node)
-		for node.locked.Load() {
-		}
-	}
-	m.owner.Store(node)
-}
-
-func (m *MCSLock) Unlock() {
-	node := m.owner.Load()
-	if node == nil {
-		panic("syncx: unlock of unlocked MCSLock")
-	}
-
-	next := node.next.Load()
-	if next == nil {
-		if m.tail.CompareAndSwap(node, nil) {
-			m.owner.Store(nil)
-			return
-		}
-		for next == nil {
-			next = node.next.Load()
-		}
-	}
-
-	m.owner.Store(nil)
-	next.locked.Store(false)
-}
-
 type RCULock struct{}
 
 func (r *RCULock) Lock() {
@@ -192,8 +127,10 @@ func (r *RWMutexLock) RUnlock() {
 // unique seq value), letting readers detect any concurrent write without
 // acquiring any lock.
 //
-// This is the L1 minimum version: caller must ensure single writer. For
-// multi-writer scenarios, wrap WriteLock/WriteUnlock with an external mutex.
+// Writers are serialized internally by writerMu: it's taken before the
+// leading seq +1 and released after the trailing one, so concurrent
+// WriteLock calls block each other but the seq parity invariant is always
+// upheld. Readers remain wait-free against writers.
 //
 // Pros:
 //   - Readers never block writers; writers never block readers. Both paths
@@ -207,12 +144,11 @@ func (r *RWMutexLock) RUnlock() {
 //   - Reader may retry under writer contention; livelock theoretically
 //     possible if writer never drains (rare in practice).
 //   - Snapshot consistency only — not memory safety. Data containing
-//     pointers, slices, or maps can leak inconsistent state to reader
-//     before validation catches it. Restrict to pure-value (Copy-style)
+//     pointers, slices, or maps can leak inconsistent state to the reader
+//     before validation catches it. Restrict to pure-value (copy-style)
 //     data.
-//   - This minimal version assumes a single writer; concurrent WriteLock
-//     calls will corrupt the seq parity.
-
+//   - The write path pays a mutex cost via writerMu. If you can guarantee
+//     a single writer, a leaner variant without the mutex is faster.
 type SeqLock struct {
 	seq      atomic.Uint64
 	writerMu sync.Mutex
@@ -232,8 +168,6 @@ func (s *SeqLock) ReadBegin() uint64 {
 	return s.seq.Load()
 }
 
-// make sure that the start value is always an even number (meaning that we didn't catch a write mid-way through)
-// if the end value is even, it means that we didn't catch a write mid-way through
 func (s *SeqLock) ReadValidate(start uint64) bool {
 	return (start&1) == 0 && s.seq.Load() == start
 }
@@ -249,4 +183,145 @@ func (s *SeqLock) Read(f func()) {
 			return
 		}
 	}
+}
+
+// CLHLock is a queue-based FIFO spinlock (Craig 1993; Landin & Hagersten 1994).
+// Each Lock call allocates a node, atomically appends it to an implicit queue
+// via a single tail Swap, and spins on its predecessor's `state` flag. On
+// Unlock, the holder writes only to its own node — the successor (already
+// spinning on that flag) observes the change and proceeds.
+//
+// Unlike MCS, the queue is implicit: there is no `next` pointer. The chain of
+// "who is watching whom" is the queue order, formed by each new locker
+// capturing the previous tail as its predecessor. Each node is owned by
+// exactly one goroutine, and only that goroutine ever writes to it on
+// release — there are no cross-goroutine writes on the release path.
+//
+// Pros:
+//   - Strict FIFO fairness, inherited from the order of tail Swap calls.
+//   - The release path is minimal: one atomic Store on the unlocker's own
+//     node. No successor lookup, no `next` pointer publication race, no
+//     "last waiter leaving" CAS. Significantly simpler than MCS to reason
+//     about and implement correctly.
+//   - Each goroutine truly owns its node — only the owner mutates it on
+//     release, so the ownership contract is clean.
+//   - This shape underpins Java's AbstractQueuedSynchronizer (AQS); the
+//     same skeleton powers ReentrantLock, ReentrantReadWriteLock, Semaphore,
+//     and CountDownLatch in `java.util.concurrent`.
+//
+// Cons (cache locality — why MCS wins on big NUMA boxes):
+//   - A CLH waiter spins on `pred.state`, where `pred` is the previous
+//     locker's node. That cache line's "home" is the predecessor's core,
+//     not the waiter's. An MCS waiter, by contrast, spins on `myNode.locked`
+//     — a line homed on the waiter's own core. Both protocols transfer
+//     exactly one cache line at handoff (one core's write, another core's
+//     re-read), so on a single-socket, uniformly cache-coherent machine
+//     (typical desktop / laptop / cloud VM), CLH and MCS perform essentially
+//     the same and CLH's simpler code wins.
+//   - On NUMA / multi-socket servers the picture changes. A CLH waiter's
+//     spin variable may live on remote-socket memory; every cache miss
+//     during spinning crosses the inter-socket interconnect (UPI / Infinity
+//     Fabric), which is an order of magnitude slower than local L3. MCS
+//     keeps the spin variable on the waiter's own NUMA node, so contention
+//     reads stay local; only the one cross-socket write at handoff pays
+//     the remote penalty. This is why Linux's `qspinlock` and most HFT
+//     locks use MCS-style local-spin queues on large boxes — the saving
+//     scales with both core count and socket count.
+//   - Lock returns a `*clhNode` handle that the caller must hand back on
+//     Unlock — slightly less ergonomic than a pure Mutex API.
+//   - Heap-allocated node per Lock call (same constant cost as MCSLock).
+//
+// Summary: prefer CLH for code clarity when running on a single-socket
+// cache-coherent machine; prefer MCS when scaling to many cores across
+// sockets.
+type CLHLock struct {
+	tail atomic.Pointer[clhNode]
+}
+
+type clhNode struct {
+	state atomic.Bool
+}
+
+func (l *CLHLock) Lock() *clhNode {
+	node := &clhNode{}
+
+	prev := l.tail.Swap(node)
+	if prev != nil {
+		for !prev.state.Load() { // spin
+		}
+	}
+
+	return node
+}
+
+func (l *CLHLock) Unlock(node *clhNode) {
+	if node == nil {
+		panic("syncx: unlock of unlocked CLHLock")
+	}
+	node.state.Store(true)
+}
+
+// MCSLock is a queue-based FIFO spinlock (Mellor-Crummey & Scott, 1991).
+// Contenders enqueue a node onto a lock-free linked list and spin on a flag
+// local to their own node, so each waiter's spin variable lives on a cache
+// line private to one core.
+//
+// Pros:
+//   - Each waiter spins on its own cache line. Unlock invalidates exactly one
+//     remote cache line — the next waiter's `locked` flag — giving O(1)
+//     coherence traffic per handoff and O(N) total to drain a queue of N
+//     waiters. Directly fixes TicketLock's O(N^2) cache storm.
+//   - Strict FIFO fairness, inherited from the queue order.
+//   - Scales well on many-core machines; this is the design behind Linux's
+//     qspinlock and Java's AQS (CLH variant).
+//
+// Cons:
+//   - More complex: a per-acquisition queue node plus careful handling of the
+//     enqueue/dequeue races, in particular the "last waiter leaving" case
+//     where the tail pointer must be CAS'd back to nil and the predecessor
+//     must wait for a successor's `next` pointer to be published.
+//   - Higher constant cost than TicketLock at low contention (extra atomics
+//     and a heap-allocated node per Lock call).
+type MCSLock struct {
+	tail  atomic.Pointer[mcsNode]
+	owner atomic.Pointer[mcsNode]
+}
+
+type mcsNode struct {
+	next   atomic.Pointer[mcsNode]
+	locked atomic.Bool
+}
+
+func (m *MCSLock) Lock() {
+	node := &mcsNode{}
+	node.locked.Store(true)
+
+	prev := m.tail.Swap(node)
+	if prev != nil {
+		prev.next.Store(node)
+		for node.locked.Load() {
+		}
+	}
+	m.owner.Store(node)
+}
+
+func (m *MCSLock) Unlock() {
+	node := m.owner.Load()
+	if node == nil {
+		panic("syncx: unlock of unlocked MCSLock")
+	}
+
+	next := node.next.Load()
+	if next == nil {
+		if m.tail.CompareAndSwap(node, nil) {
+			m.owner.Store(nil)
+			return
+		}
+		for next == nil {
+			next = node.next.Load()
+		}
+	}
+
+	m.owner.Store(nil)
+	next.locked.Store(false)
 }

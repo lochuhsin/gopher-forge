@@ -14,6 +14,5 @@ func (c *AtomicCell[T]) Load() T {
 	if r := c.obj.Load(); r != nil {
 		return *r
 	}
-
 	return *new(T)
 }
