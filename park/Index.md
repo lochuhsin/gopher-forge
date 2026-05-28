@@ -10,6 +10,9 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - All higher sleeping primitives eventually need this shape: atomic state word on the fast path, real parking on the slow path, loop on predicate after wake.
 - Go parks goroutines, not OS threads, so runtime semaphores and channels are the practical educational substrate.
 - Recommended build order from the merged TODO: runtime-sema Parker wrapper, use it to finish `syncx.MutexLock`, then Linux futex demo, then permit-style Parker.
+- Cross-language gap: add AQS-style queued waiters before building many more
+  sleeping primitives. Most timeout, fairness, and cancellation bugs live in
+  waiter registration/removal, not in the fast-path atomic word.
 - Dependencies: consumed by `syncx` locks, condvars, semaphores, latches, and futures.
 - Career signal: advanced; useful for explaining futexes, permit-based parking, runtime parking, and atomic wait/notify.
 - Scope rule: portable Go implementations should expose check-then-park and waiter-queue semantics; raw OS futex code is an optional Linux-specific lab.
@@ -40,6 +43,18 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Go lacks a public direct primitive, so implementation must use channels, condvars, or runtime internals.
   - Scenarios: Mutex slow paths, semaphores, parking queues, cross-language primitive comparison.
 
+- [ ] WaitNode
+  - Core Concept: Represent one blocked goroutine with a wake token, cancellation state, queue links, and optional deadline metadata.
+  - Pros: Makes waiter lifecycle explicit and reusable across mutexes, semaphores, condvars, futures, and actor mailboxes.
+  - Cons: Reuse and removal races are subtle; nodes must not be copied or woken twice.
+  - Scenarios: FairSemaphore, ContextCond, TimeoutPark, cancellation-safe blocking queues.
+
+- [ ] QueuedSynchronizer
+  - Core Concept: Maintain an atomic state word plus a FIFO wait queue, with exclusive/shared acquire and release hooks like a Go-shaped AQS study.
+  - Pros: Centralizes fairness, barging, wake-one, wake-all, and cancellation behavior instead of reimplementing them in every primitive.
+  - Cons: Generic hooks can obscure each primitive's state machine if the abstraction is too broad.
+  - Scenarios: Fair mutex, fair semaphore, reader-writer lock variants, phasers, countdown events.
+
 - [ ] FutexMutex
   - Core Concept: A 3-state mutex uses `unlocked`, `locked no waiters`, and `locked with waiters` to avoid unnecessary wake syscalls.
   - Pros: Shows why production mutexes have more than a boolean state.
@@ -57,6 +72,12 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Makes fairness and starvation policy explicit.
   - Cons: Cancellation and timeout removal require careful list manipulation.
   - Scenarios: Condvar, semaphore, fair mutex, scheduler experiments.
+
+- [ ] CancellationSafeWaiterRemoval
+  - Core Concept: A timed-out or cancelled waiter removes itself or marks itself skipped without racing a concurrent wake into a lost permit.
+  - Pros: Required for service-safe `Wait(ctx)`, `Acquire(ctx)`, and `TryLockUntil` APIs.
+  - Cons: The wake-vs-cancel race must define exactly which side owns the permit or notification.
+  - Scenarios: Context-aware condvars, weighted semaphores, blocking queues, futures.
 
 - [ ] SelectWaitSet
   - Core Concept: A waiter registers interest in multiple wait sources and exactly one source wins.

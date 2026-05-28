@@ -64,6 +64,18 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Waiter removal and shutdown semantics add complexity.
   - Scenarios: FAANG-style interview queue, producer-consumer systems.
 
+- [ ] BoundedChannelPolicy
+  - Core Concept: A bounded channel-like queue declares what writers do when capacity is full: wait, fail, drop-oldest, drop-newest, drop-write, or replace-latest.
+  - Pros: Turns overload behavior into an explicit API contract and aligns queue tests with backpressure design.
+  - Cons: Each policy changes delivery guarantees, fairness, and memory visibility expectations.
+  - Scenarios: Actor mailboxes, telemetry buffers, market-data fan-out, inference admission queues.
+
+- [ ] LossyBoundedQueue
+  - Core Concept: A bounded queue intentionally drops or replaces items under pressure according to `BoundedChannelPolicy`.
+  - Pros: Useful when stale work is worse than missing work, and it gives concrete benchmarks for slow-consumer policy.
+  - Cons: Not linearizable as a normal FIFO unless dropped items are part of the specified history.
+  - Scenarios: Latest quote streams, metrics, logs, UI/event state, load shedding.
+
 - [ ] SynchronousQueue
   - Core Concept: A zero-capacity queue transfers an item only when producer and consumer rendezvous.
   - Pros: Strong backpressure and no buffering ambiguity.
@@ -141,6 +153,12 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Useful complement to MPSC and exposes consumer-side contention.
   - Cons: Correct slot claiming and ordering are more complex than SPSC.
   - Scenarios: Fan-out work distribution, schedulers, queue taxonomy completeness.
+
+- [ ] DelayQueue
+  - Core Concept: Items become available only after their deadline, usually backed by a min-heap plus a wakeup mechanism.
+  - Pros: Provides a concrete scheduling queue for deadlines, retries, actor timers, and rate limiter waits.
+  - Cons: Cancellation cleanup, clock jumps, and wakeup coalescing can produce subtle bugs.
+  - Scenarios: DeadlineScheduler, retry queues, timeout tests with `clock.ManualClock`, delayed actor messages.
 
 - [ ] LockFreePriorityQueue
   - Core Concept: A concurrent skip-list or heap-like structure supports priority-ordered dequeue.

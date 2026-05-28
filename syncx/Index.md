@@ -313,6 +313,12 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Current methods are empty and depend on runtime-private APIs.
   - Scenarios: Condvar internals, Signal vs Broadcast, lost-wakeup analysis.
 
+- [ ] ContextCond
+  - Core Concept: A condition variable wait can return because the predicate was signaled, the context was cancelled, or a deadline expired.
+  - Pros: Makes condition variables usable in service code and exercises cancellation-safe waiter removal.
+  - Cons: Removing a waiter races with Signal/Broadcast, so the wake ownership rule must be exact.
+  - Scenarios: Blocking queues, admission control waits, shutdown-aware monitors.
+
 ## Channel Helper Family
 
 - [x] UnorderedChannel
@@ -368,6 +374,26 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Prevents goroutine leaks and gives shutdown/error propagation a standard contract.
   - Cons: Double close, send-after-close, and buffered-drain behavior must be defined.
   - Scenarios: Pipeline shutdown, actor mailbox stop, producer disappearance, test cleanup.
+
+## Keyed and Deduplication Family
+
+- [ ] KeyedMutex
+  - Core Concept: Hash keys to independent mutexes or dynamically create per-key locks so unrelated keys proceed concurrently.
+  - Pros: Practical bridge from primitive locks to per-account, per-symbol, or per-resource isolation.
+  - Cons: Dynamic lock cleanup needs refcounts or epochs; striped versions can serialize unrelated hot keys.
+  - Scenarios: Per-user cache fills, account risk gates, symbol shards, idempotency keys.
+
+- [ ] KeyedSemaphore
+  - Core Concept: Limit concurrent work independently per key while preserving a global API for acquire and release.
+  - Pros: Models resource partitioning without forcing callers to manage many semaphore instances.
+  - Cons: Permit leaks and key cleanup are harder than for a single semaphore.
+  - Scenarios: Per-tenant throttling, per-market request caps, partitioned worker pools.
+
+- [ ] SingleFlight
+  - Core Concept: Concurrent callers for the same key share one in-flight computation and all receive the same result.
+  - Pros: Prevents cache stampedes and duplicate RPCs while teaching result publication and waiter broadcast.
+  - Cons: Cancellation policy is subtle: one caller timing out must not necessarily cancel the shared producer.
+  - Scenarios: Config reload, cache fill, price snapshot refresh, RPC fan-in.
 
 ## Future and STM Family
 

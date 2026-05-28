@@ -69,6 +69,12 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Cannot prove race freedom and may miss unexecuted paths.
   - Scenarios: CI checks, teaching race reports, validating monitor-style code.
 
+- [ ] SynctestHarness
+  - Core Concept: Use Go's `testing/synctest` style of isolated concurrent bubbles to test cancellation, time, and wakeup behavior without sleeps.
+  - Pros: Makes future, context, and waiter-queue tests more deterministic than wall-clock polling.
+  - Cons: It validates Go-runtime-visible blocking behavior, not arbitrary hardware interleavings or lock-free proofs.
+  - Scenarios: ContextCond, SingleFlightGroup, futures, DeadlineScheduler, actor shutdown.
+
 - [ ] LitmusRunner
   - Core Concept: Repeatedly run tiny reorder-sensitive programs and summarize observed outcomes.
   - Pros: Makes memory ordering visible.

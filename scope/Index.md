@@ -10,6 +10,10 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Cancellation is cooperative in Go; this package should make checkpoints and propagation explicit rather than promising preemption.
 - Structured concurrency differs from `context.Context`: context carries a cancellation signal, while scope also owns spawned goroutines.
 - Recommended build order from the merged TODO: CancellationToken, TokenTree, Nursery, ErrGroup, OnCancel callbacks, DeadlineScheduler, then cancellation benchmarks.
+- Cross-language gap: structured concurrency should include duplicate
+  suppression and deadline ownership, not only goroutine counting. A
+  context-aware `SingleFlightGroup` belongs here even if the lower state machine
+  is studied in `syncx/`.
 - Dependencies: uses `syncx.WaitGroup`, future/promise work, and cancellation-aware wait queues; consumed by `parallel/`, `actor/`, and `_lab/pattern`.
 - Career signal: high for senior Go because context, errgroup, deadlines, and graceful shutdown are practical interview and production topics.
 - Scope rule: structured concurrency items are included when they enforce ownership and bounded lifetime, not just because a language has an async keyword.
@@ -63,6 +67,12 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Extends errgroup from "wait for error" to useful parallel composition.
   - Cons: Result ordering, partial failure, and memory retention must be specified.
   - Scenarios: Parallel queries, fan-out aggregation, async task composition.
+
+- [ ] SingleFlightGroup
+  - Core Concept: A scope coalesces concurrent calls by key and controls how producer failure, caller cancellation, and shared result publication interact.
+  - Pros: Combines structured lifetime, duplicate suppression, and cancellation policy in a high-value service primitive.
+  - Cons: The API must distinguish cancelling one waiter from cancelling the shared producer.
+  - Scenarios: Cache stampede prevention, RPC request coalescing, model/config lazy loading.
 
 - [ ] DeadlineScheduler
   - Core Concept: Manage many deadlines efficiently with a heap or timing wheel.

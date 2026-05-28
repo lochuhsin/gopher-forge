@@ -40,6 +40,12 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Hot counters become cache-line bottlenecks and overflow must be defined.
   - Scenarios: TicketLock, WaitGroup packed state, queue head/tail counters, rate limiter accounting.
 
+- [ ] StripedCounter
+  - Core Concept: Split updates across padded atomic cells and aggregate on read, LongAdder-style, to reduce a single hot counter's cache-line traffic.
+  - Pros: Teaches contention dilution, padding, approximate read cost, and why one atomic counter can bottleneck metrics and admission paths.
+  - Cons: Reads must sum all cells and may not be a single linearizable point unless the API explicitly documents weak snapshot semantics.
+  - Scenarios: Metrics counters, rate limiter accounting, queue statistics, false-sharing benchmarks.
+
 - [ ] AtomicExchange
   - Core Concept: Atomically replace a value and return the previous value.
   - Pros: Useful for intrusive queues, once-only handoff, and state swaps.

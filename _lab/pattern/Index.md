@@ -81,6 +81,12 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Shutdown, cancellation, and draining semantics are subtle.
   - Scenarios: Reactive streams, data processing, exchange pipelines.
 
+- [ ] DataflowBlocks
+  - Core Concept: Build Go-shaped buffer, transform, broadcast, batch, and join blocks that connect through bounded queues and explicit completion.
+  - Pros: Turns pipeline composition into named components and mirrors TPL Dataflow without leaving Go's channel/context model.
+  - Cons: Error propagation, completion ordering, and bounded capacity rules must be consistent across blocks.
+  - Scenarios: ETL graphs, inference preprocessing, multi-stage market-data enrichment.
+
 - [ ] BackpressurePolicyMatrix
   - Core Concept: Implement and compare block, drop-oldest, drop-newest, shed, buffer, and degrade policies.
   - Pros: Makes overload behavior an explicit design choice.
@@ -122,6 +128,12 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Makes resource bottlenecks explicit.
   - Cons: Adds queueing latency and operational complexity.
   - Scenarios: Web services, GPU inference schedulers, pipeline experiments.
+
+- [ ] DataflowNetwork
+  - Core Concept: Compose dataflow blocks into a graph with explicit links, bounded buffers, completion propagation, and cancellation.
+  - Pros: Demonstrates how low-level queues, scopes, and futures become a production-style architecture.
+  - Cons: Cycles, backpressure loops, and partial failure can deadlock without clear policies.
+  - Scenarios: Streaming DAGs, image/log processing, inference routing.
 
 - [ ] WorkStealingPool
   - Core Concept: Workers process local deques and steal from others when idle.

@@ -231,7 +231,7 @@ Cross-language additions worth tracking:
    per-key isolation.
 4. `memory.StripedCounter` / LongAdder-style cells. This fills the gap between
    a single hot atomic counter and full sharding.
-5. `clock.DelayQueue` / `DeadlineHeap` and `scope.DeadlineScheduler`. These
+5. `queue.DelayQueue` / `clock.DeadlineHeap` and `scope.DeadlineScheduler`. These
    unlock deterministic timeout, retry, actor, and rate-limit tests.
 6. `_lab/pattern.DataflowBlocks`: buffer, transform, broadcast, batch, and join
    blocks as a Go-shaped version of TPL Dataflow.
@@ -330,7 +330,7 @@ inspectable artifact or a deliberate scaffold with tests where appropriate.
 | Package | Phase 1 items | Mental model trained | Why now |
 |---|---|---|---|
 | `memory/` | `AtomicLoadStore`, `CompareAndSwap`, `FetchAddCounter`, `StripedCounter`, `AcquireReleasePairing`, `PublicationSafety` | Visibility, ownership, publication, CAS substrate boundary, hot-counter contention | Upstream of every lock-free or wait-free claim |
-| `syncx/` | `Once`, `OnceValue`, `MesaQueueCond`, finish `MutexLock` scaffold, `WeightedSemaphore`, `SingleFlightGroup` | State machines, lost wakeups, publication, duplicate suppression, parking vs spinning | Covers senior interview floor and unlocks blocking queues |
+| `syncx/` | `Once`, `OnceValue`, `MesaQueueCond`, finish `MutexLock` scaffold, `WeightedSemaphore`, `SingleFlight` | State machines, lost wakeups, publication, duplicate suppression, parking vs spinning | Covers senior interview floor and unlocks blocking queues |
 | `park/` | `Parker`, `WaitNode`, `QueuedSynchronizer`, `PermitParker`, `SpuriousWakeupContract` | Register-before-sleep, waiter queues, wake-one vs broadcast, lost wakeups | Needed before custom sleeping primitives become credible |
 | `queue/` | `LamportSPSCRing`, finish `LockFreeSPSC`, SPSC tests, `BlockingBoundedQueue`, `BoundedChannelPolicy` baseline | FIFO, producer/consumer ownership, full/empty, backpressure and drop policy | Highest shared signal for HFT, exchange, streaming, AI inference |
 | `stack/` | `TreiberABAExperiment`, invariants for existing Treiber stack | CAS loops, ABA, linearization point | Bridges current stack code to memory/reclamation learning |
