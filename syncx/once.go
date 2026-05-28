@@ -36,15 +36,15 @@ func (o *OnceCell[T]) Do(f func() T) T {
 	return o.v
 }
 
-type OnceCellError[T any] struct {
+type OnceCells[T any, K any] struct {
 	once Once
 	v    T
-	err  error
+	v2   K
 }
 
-func (o *OnceCellError[T]) Do(f func() (T, error)) (T, error) {
+func (o *OnceCells[T, K]) Do(f func() (T, K)) (T, K) {
 	o.once.Do(func() {
-		o.v, o.err = f()
+		o.v, o.v2 = f()
 	})
-	return o.v, o.err
+	return o.v, o.v2
 }
