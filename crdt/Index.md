@@ -14,6 +14,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: strongest for collaborative editing, geo-replicated state, crypto distributed state, and FAANG system-design depth.
 - Scope rule: CRDTs are not low-level synchronization primitives; keep them as optional coordination-free concurrency and distributed-state training.
 
+## Reference Trail and Go Boundary
+
+- Primary CRDT references: Shapiro et al. CRDT overview (`https://arxiv.org/abs/1805.06358`) and the CRDT paper catalog (`https://crdt.tech/papers.html`).
+- Mental model: CRDT correctness is algebra first, code second. Merge must be commutative, associative, and idempotent, or convergence is accidental.
+- Go boundary: CRDTs do not replace local synchronization. A replica implementation still needs ordinary Go safety for its local map/set/list state.
+- Causality boundary: state-based CRDTs can tolerate duplicate/reordered full state; op-based CRDTs need causal delivery or metadata that makes missing dependencies explicit.
+- Metadata boundary: tombstones, dots, vector clocks, and HLC timestamps are part of the data type, not incidental implementation details.
+- Interview artifact: every CRDT should ship with property tests for merge laws and at least one concurrent-update example that explains the chosen conflict semantics.
+
 ## Implementation Checklist
 
 - [ ] GCounter

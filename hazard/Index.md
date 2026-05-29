@@ -14,6 +14,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: strong for systems interviews because it turns lock-free structures from toy examples into memory-safe designs.
 - Scope rule: focus on the portable hazard-pointer protocol; avoid depending on goroutine-local storage and require explicit holder ownership in Go.
 
+## Reference Trail and Go Boundary
+
+- Primary reference: Maged Michael hazard pointers (`https://www.cs.otago.ac.nz/cosc440/readings/hazard-pointers.pdf`).
+- Mental model: protection is not "store the pointer somewhere." It is load, publish, reload, and only then dereference if the pointer is still current.
+- Go boundary: Go has no stable goroutine-local storage. APIs should pass explicit `Holder`/`Guard` objects rather than hiding hazard records behind goroutine identity.
+- ABA boundary: hazard pointers prevent unsafe reuse while a node is protected; they do not by themselves make every algorithm linearizable.
+- Cost boundary: HP usually makes readers more expensive and reclaimers amortized; compare against EBR/QSBR instead of assuming one universal answer.
+- Interview artifact: include a deliberately broken missing-reload test or trace for every hazard-pointer integration.
+
 ## Implementation Checklist
 
 - [~] HazardPointerScaffold

@@ -14,6 +14,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: strong for work-stealing schedulers, fork/join pools, and parallel algorithm runtimes.
 - Scope rule: prioritize portable work-stealing algorithms such as ABP and Chase-Lev; runtime-specific scheduler details should stay as comparison notes.
 
+## Reference Trail and Go Boundary
+
+- Classic deque line: ABP work stealing (`https://www.cs.cmu.edu/~guyb/paralg/papers/AroraBlumofePlaxton01.pdf`) and Chase-Lev dynamic circular work-stealing deque (`https://www.cs.wm.edu/~dcschmidt/PDF/work-stealing-dequeue.pdf`).
+- Mental model: one owner has cheap bottom operations; thieves contend on top. The last element is the only place where owner and thief race for the same logical item.
+- Go boundary: Go cannot portably pin goroutines to worker threads, so model workers explicitly instead of assuming runtime scheduler affinity.
+- Resize boundary: growing the circular array creates old-buffer lifetime issues. Under Go GC this is easier mechanically, but the design notes should still name the reclamation proof.
+- Progress boundary: work stealing is about scheduler throughput and load balance, not just a deque API; include victim policy and shutdown semantics when it becomes a pool.
+- Interview artifact: every Chase-Lev explanation should include the empty case, multi-item case, and single-item CAS race.
+
 ## Implementation Checklist
 
 - [ ] MutexDeque

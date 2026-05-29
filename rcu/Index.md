@@ -14,6 +14,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: strongest for read-mostly database, kernel, AI infra, and crypto validator systems.
 - Scope rule: implement userspace-style explicit read sections in Go; Linux preemption/interrupt semantics are reference material, not required code.
 
+## Reference Trail and Go Boundary
+
+- Primary reference: Linux RCU handbook and concepts (`https://docs.kernel.org/RCU/`, `https://www.kernel.org/doc/html/v5.16/RCU/rcu.html`).
+- Mental model: RCU is read-side lifetime plus publish-replace plus grace-period reclamation. It is not a reader-writer lock with a faster read path.
+- Go boundary: implement URCU/SRCU/QSBR-style explicit domains. Do not model Linux preemption-disable, interrupt, or CPU quiescent-state rules as if Go exposed them.
+- Publication boundary: `AssignPointer`/`Dereference` are memory-ordering operations; `SynchronizeRCU`/`CallRCU` are lifetime operations.
+- Update boundary: RCU works best when readers tolerate immutable snapshots and writers can copy or version state.
+- Interview artifact: include a reader-held-old-version trace and show why reclamation waits for a grace period even after the writer has published the new pointer.
+
 ## Implementation Checklist
 
 - [ ] RCUReadSection

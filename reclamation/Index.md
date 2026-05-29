@@ -14,6 +14,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: advanced but important; the best interview answer to "what breaks in your lock-free stack?" is ABA plus unsafe reclamation.
 - Scope rule: include reclamation strategies that can be simulated or implemented behind explicit Go APIs; allocator-specific free-list tricks stay in `arena/` or notes.
 
+## Reference Trail and Go Boundary
+
+- Classic reclamation line: hazard pointers, Fraser-style epoch reclamation (`https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-579.pdf`), and Linux RCU grace periods (`https://docs.kernel.org/RCU/`).
+- Mental model: logical removal and physical reuse/free are separate events. Reclamation proves no reader can still hold the old pointer between those events.
+- Go boundary: GC removes ordinary free/reuse pressure, so this package should use explicit retire callbacks, simulated allocators, or unsafe labs to teach the proof without pretending Go requires manual free.
+- EBR boundary: epochs are cheap for readers but one stuck pinned participant can retain unbounded retired memory.
+- QSBR boundary: quiescent-state reporting is nearly free in hot read sections but only works if every participant cooperates.
+- Interview artifact: every reclamation strategy should include a stalled-reader scenario and explain safety, memory growth, and progress separately.
+
 ## Implementation Checklist
 
 - [ ] EpochBasedReclamation

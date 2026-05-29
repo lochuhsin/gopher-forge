@@ -14,6 +14,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: very strong for AI infra and crypto execution because scan/reduce/pipeline/all-reduce map to real production systems.
 - Scope rule: every algorithm should state its work, span, partition strategy, synchronization points, cancellation behavior, and whether the operation must be associative or commutative.
 
+## Reference Trail and Go Boundary
+
+- Classic parallel line: Blelloch prefix sums (`https://www.cs.cmu.edu/~guyb/papers/Ble93.pdf`), Cilk/work stealing, Go pipelines (`https://go.dev/blog/pipelines`), and NCCL collectives (`https://developer.nvidia.com/blog/massively-scale-deep-learning-training-nccl-2-4/`).
+- Mental model: throughput comes from reducing span and overhead, not just starting more goroutines.
+- Go boundary: model worker pools, deques, queues, and cancellation explicitly; do not rely on hidden runtime scheduling behavior for algorithm correctness.
+- Algebra boundary: reduce/scan/filter must name associativity, commutativity, stability, and floating-point determinism before promising results.
+- Backpressure boundary: pipeline stages need bounded queues and scope cancellation, otherwise "parallel" code becomes a goroutine leak under early exit.
+- Interview artifact: every algorithm should include work/span notes and a small adversarial workload that shows scheduler or synchronization overhead.
+
 ## Implementation Checklist
 
 - [ ] ParallelMap

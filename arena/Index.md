@@ -14,6 +14,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: niche for FAANG interviews but strong for HFT, game-engine, database, and AI-infra memory-management work.
 - Scope rule: include allocation patterns that teach concurrency and lifetime; skip GC/runtime internals that cannot be portably implemented in Go.
 
+## Reference Trail and Go Boundary
+
+- Reference line: Go runtime allocation is useful background, but this package should focus on implementable regions, slabs, pools, freelists, and debug lifetime checks.
+- Mental model: allocation performance is a lifetime-design problem. The fastest free is usually "reset the whole region," but every outstanding pointer becomes invalid.
+- Go boundary: ordinary Go cannot expose safe arbitrary object placement and manual free. Use byte buffers, typed slices, pooled objects, and narrow `unsafe` experiments only when the lifetime rule is explicit.
+- Concurrency boundary: atomic bump allocation is simple but creates one hot offset; worker-local arenas trade memory balance for locality.
+- ABA boundary: slab freelists are Treiber stacks in allocator clothing, so tags, hazard pointers, epochs, or GC assumptions must be named.
+- Interview artifact: every allocator item should state ownership, reset/free semantics, alias invalidation, and whether returned objects can cross worker boundaries.
+
 ## Implementation Checklist
 
 - [ ] BumpAllocator

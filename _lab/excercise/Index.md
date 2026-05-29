@@ -13,6 +13,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: useful for whiteboard concurrency and for explaining deadlock, starvation, fairness, and group rendezvous.
 - Scope rule: exercises should reuse package primitives and compare multiple solutions; avoid puzzle variants that only test language syntax.
 
+## Reference Trail and Go Boundary
+
+- Exercise reference: The Little Book of Semaphores (`https://greenteapress.com/wp/semaphores/`) and the standard Go concurrency examples are the right source style here.
+- Mental model: exercises are drills for recognizing state predicates, wait conditions, wake rules, and liveness failure modes.
+- Go boundary: do not create new primitives in this lab. Use `syncx/`, channels, semaphores, queues, maps, clocks, and actor patterns as consumers.
+- Comparison boundary: each puzzle should have at least two implementations when practical, then compare fairness, deadlock risk, starvation, cancellation, and backpressure.
+- Verification boundary: an exercise is not complete until it has an invariant checker or stress case that can catch a known bad solution.
+- Interview artifact: each exercise should produce a short explanation of the invariant, the failure mode, and why the chosen primitive fits.
+
 ## Implementation Checklist
 
 - [ ] PrintInOrder

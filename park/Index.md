@@ -17,6 +17,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: advanced; useful for explaining futexes, permit-based parking, runtime parking, and atomic wait/notify.
 - Scope rule: portable Go implementations should expose check-then-park and waiter-queue semantics; raw OS futex code is an optional Linux-specific lab.
 
+## Reference Trail and Go Boundary
+
+- Primary Go reference: runtime semaphore and notify-list source (`https://cs.opensource.google/go/go/+/refs/tags/go1.26.1:src/runtime/sema.go`).
+- Cross-language reference: C++ `atomic_wait`/`notify` and semaphores (`https://eel.is/c++draft/thread`) name the portable shape, while Linux futex names the OS check-and-sleep primitive.
+- Mental model: parking is never "sleep now." It is "publish waiter, re-check predicate, then sleep only if the wake cannot be lost."
+- Go boundary: public Go has no futex or arbitrary atomic-wait API. Use channels/condvars for portable baselines and `go:linkname` runtime semaphores only for explicit runtime-internals learning.
+- Cancellation boundary: timed waits need an ownership decision for wake-vs-timeout. Either the waker owns the permit or the canceller does; an ambiguous race creates leaks or double wakeups.
+- Interview artifact: every parked primitive should include a lost-wakeup trace and the exact step that prevents it.
+
 ## Implementation Checklist
 
 - [ ] Parker

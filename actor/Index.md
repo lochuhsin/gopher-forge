@@ -14,6 +14,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: strongest for AI infra actor systems and event-driven services, less central for low-level HFT.
 - Scope rule: focus on transferable actor concepts: mailbox, ownership, supervision, routing, backpressure, lifecycle, and request/reply.
 
+## Reference Trail and Go Boundary
+
+- Classic actor line: Hewitt actor model (`https://arxiv.org/abs/1008.1459`), Erlang/OTP supervision (`https://www.erlang.org/doc/system/sup_princ.html`), and Akka mailbox/dispatcher docs (`https://doc.akka.io/libraries/akka-core/current/typed/mailboxes.html`).
+- Mental model: an actor is a private state machine plus mailbox plus lifecycle policy. The mailbox is the synchronization boundary.
+- Go boundary: Go cannot kill goroutines or roll back side effects. Supervision must be cooperative: stop intake, cancel children, drain or reject mailbox, then restart explicitly.
+- Mailbox boundary: FIFO, priority, bounded, lossy, selective receive, and dead-letter queues are different contracts; do not hide them behind one vague `Send`.
+- Ask boundary: request/reply must handle timeout, late reply, actor death, and reply-handle revocation.
+- Interview artifact: every actor item should name mailbox capacity policy, delivery guarantee, failure policy, and ownership of actor-local state.
+
 ## Implementation Checklist
 
 - [ ] Mailbox

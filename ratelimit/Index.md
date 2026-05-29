@@ -14,6 +14,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: top-tier for Dubai/fintech/backend interviews because distributed rate limiting and circuit breakers are common system-design topics.
 - Scope rule: include service-level flow-control patterns when they are implemented with portable primitives: atomics, semaphores, queues, clocks, and cancellation.
 
+## Reference Trail and Go Boundary
+
+- Primary Go references: Go rate-limiting wiki (`https://go.dev/wiki/RateLimiting`) and `x/time/rate` token bucket (`https://pkg.go.dev/golang.org/x/time/rate`).
+- Classic policy line: token bucket, leaky bucket, sliding windows, GCRA, circuit breakers, bulkheads, and credit-based flow control.
+- Mental model: admission control is a state machine over time plus capacity. The key question is whether excess work waits, fails, drops, or replaces older work.
+- Go boundary: local limiters can use atomics, mutexes, semaphores, and injected clocks. Distributed limiters are a separate consistency problem because the atomic update crosses process and network boundaries.
+- Time boundary: use `clock.ManualClock`/`DeadlineHeap` for tests; wall-clock sleeps hide bugs and make benchmarks noisy.
+- Interview artifact: every limiter should document burst behavior, fairness, cancellation, clock skew assumptions, and overload policy.
+
 ## Implementation Checklist
 
 - [ ] TokenBucket

@@ -9,11 +9,20 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Merged sources: the former root and family-specific roadmap files for locks, semaphores, latches, barriers, condition variables, channel helpers, futures, and STM.
 - Package boundary: `syncx/` is for primitive families where variants share the same conceptual interface, such as lock, semaphore, latch, barrier, condition variable, future, and STM.
 - Core invariant: every primitive must define its state machine, blocking policy, wakeup rule, fairness policy, and happens-before edge.
-- Current truth from source: spin/ticket/MCS/RW wrapper/seqlock, semaphore variants, spin/channel latches, WaitGroup, counting/sense barriers, and channel helpers have usable code; several runtime/cond/barrier/future/STM items are scaffolds.
-- Recommended build order from the merged TODOs: finish `MutexLock` and `LockFreeSPSC` adjacent work first, complete condition variables, then event/once/future, then advanced barriers, then STM as a later high-complexity topic.
+- Current truth from source: spin/ticket/MCS/RW wrapper/seqlock, semaphore variants, spin/channel latches, WaitGroup, Once/OnceCell, counting/sense barriers, and channel helpers have usable code; CLH has code but needs checklist-grade tests, and several runtime/cond/barrier/future/STM items are scaffolds.
+- Recommended build order from the merged TODOs: finish `MutexLock`, complete condition variables, then event/future work, then advanced barriers, then STM as a later high-complexity topic.
 - Dependencies: `syncx/` depends on `memory/` conceptually and on `queue/` for `LockfreeSemaphore`; higher packages depend heavily on `syncx/`.
 - Career signal: this package is the foundation layer for the repo. Locks, semaphores, condvars, WaitGroup, and barriers are the vocabulary needed before data structures and patterns.
 - Transfer rule: include named primitives only when their core state machine ports cleanly to Go, such as `CountDownLatch`, `CyclicBarrier`, `Phaser`, futures, and semaphores.
+
+## Reference Trail and Go Boundary
+
+- Classic sync line: Mellor-Crummey and Scott queue locks/barriers (`https://www.cs.rochester.edu/research/synchronization/pseudocode/ss.html`), Go `sync` docs (`https://pkg.go.dev/sync`), and runtime semaphore/notify-list internals (`https://cs.opensource.google/go/go/+/refs/tags/go1.26.1:src/runtime/sema.go`).
+- Mental model: a synchronization primitive is a state machine plus an ownership rule plus a wake policy. If one of those is unnamed, the implementation is not ready.
+- Substrate boundary: `sync.Mutex`, `sync.Cond`, `sync.Once`, channels, and `sync.Map` are baselines or semantic references unless the checklist item explicitly studies that abstraction.
+- Sleeping boundary: anything that blocks should route through `park/` concepts: register waiter, re-check predicate, park, wake, loop, and handle cancellation.
+- Fairness boundary: spin locks, ticket locks, MCS/CLH locks, semaphores, and condvars must say whether barging is allowed; safety without fairness is not the full primitive contract.
+- Interview artifact: each primitive should have a one-page explanation of fast path, slow path, wake path, and the exact happens-before edge it exports to callers.
 
 ## Lock Family
 
@@ -89,10 +98,10 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Current methods are no-ops; there is no grace-period tracking or reclamation.
   - Scenarios: Placeholder for comparing lock-style reads with full `rcu/` package semantics.
 
-- [ ] CLHLock
+- [~] CLHLock
   - Core Concept: A queue lock where each waiter spins on its predecessor's state rather than a shared lock word.
-  - Pros: FIFO fairness and less shared cache-line bouncing than ticket locks.
-  - Cons: Requires per-waiter nodes and careful node reuse rules.
+  - Pros: FIFO fairness and less shared cache-line bouncing than ticket locks; `CLHLock` code and explanatory notes exist in `lock.go`.
+  - Cons: The API returns a per-acquisition node handle and does not yet have dedicated correctness tests or benchmarks, so it is not checklist-complete.
   - Scenarios: Compare CLH with MCS and queued synchronizer internals.
 
 - [ ] OptimisticStampedRWLock
@@ -225,16 +234,16 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Easy to lose signals if registration and wake are not atomic.
   - Scenarios: Async runtime wakers, lightweight event notification.
 
-- [ ] Once
+- [x] Once
   - Core Concept: Run a function exactly once and publish its side effects to all later callers.
-  - Pros: Teaches double-checking and publication safety.
-  - Cons: Panic and retry semantics must be specified.
+  - Pros: Teaches double-checking and publication safety; tests cover exactly-once execution, blocking followers, happens-before publication, panic semantics, and stress.
+  - Cons: Follows `sync.Once`-style panic behavior by marking the operation done; it does not provide retry semantics.
   - Scenarios: Lazy initialization and `sync.Once` internals.
 
-- [ ] OnceValue
+- [x] OnceValue
   - Core Concept: Run a supplier once, store its value or error, and return the same result to all callers.
-  - Pros: Practical bridge from `Once` to `OnceCell` and future-like value publication.
-  - Cons: Panic/error caching semantics must be explicit.
+  - Pros: Practical bridge from `Once` to `OnceCell` and future-like value publication; implemented as `OnceCell[T]` and `OnceCells[T, K]` with value, pair, concurrent, and error round-trip tests.
+  - Cons: The public names are `OnceCell` and `OnceCells`, not `OnceValue`; panic behavior inherits `Once`.
   - Scenarios: Lazy config loading, singleton resources, memoized expensive computation.
 
 ## Barrier Family

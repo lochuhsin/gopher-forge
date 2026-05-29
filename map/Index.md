@@ -14,6 +14,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: very high for FAANG-style interviews because thread-safe map and LRU are common senior coding tasks.
 - Scope rule: separate consistency models explicitly: linearizable operations, weak iteration, snapshot reads, eventual cleanup, and resize behavior.
 
+## Reference Trail and Go Boundary
+
+- Primary Go reference: `sync.Map` documents workload assumptions and synchronizes-before guarantees (`https://pkg.go.dev/sync#Map`).
+- Classic map line: Harris linked-list deletion (`https://doi.org/10.1007/3-540-45414-4_21`), split-ordered lists (`https://ldhulipala.github.io/readings/split_ordered_lists.pdf`), and Ctrie-style concurrent hash tries.
+- Mental model: maps are not one primitive. Lookup, insert, delete, iteration, resize, and eviction can each have different consistency and blocking rules.
+- Go boundary: start with sharded mutex/RWMutex maps and LRU before lock-free maps. Lock-free resize and delete require `memory/`, `hazard/`, or `reclamation/` vocabulary.
+- Iteration boundary: "concurrent map" does not imply linearizable iteration. Snapshot, weakly consistent, and locked iteration are different APIs.
+- Interview artifact: every map should document hot-key behavior, resize protocol, deletion tombstones, and whether reads mutate hidden state.
+
 ## Implementation Checklist
 
 - [ ] ShardedMutexMap

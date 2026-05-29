@@ -9,10 +9,19 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Core invariant: `Enqueue(v)` must happen-before a successful `Dequeue()` that returns `v`, and FIFO order is defined by the linearization order of committed operations.
 - Concurrency profile is part of the contract: SPSC, MPSC, SPMC, and MPMC are not interchangeable implementation details.
 - Bounded queues must define overflow behavior: return false, block, drop, or grow. This package currently favors non-blocking bounded rings plus mutex baselines.
-- Recommended build order from the merged TODO: finish `LockFreeSPSC`, then implement LMAX Disruptor, then Michael-Scott queue once reclamation exists, then intrusive MPSC, then academic wait-free/priority queues.
+- Recommended build order from the merged TODO: build the LMAX Disruptor next, then Michael-Scott queue once reclamation exists, then intrusive MPSC, then academic wait-free/priority queues.
 - Dependencies: lock-free variants depend on `memory/`; Michael-Scott depends on `hazard/` or `reclamation/`; Disruptor can stay ring-based and avoid reclamation.
 - Career signal: SPSC and Disruptor are the strongest HFT/crypto signals; MPMC bounded queues are the general systems baseline.
 - Transfer rule: queues here include Go channels as a mental model, but implementation topics should expose FIFO contracts, blocking policy, capacity, fairness, and linearization points.
+
+## Reference Trail and Go Boundary
+
+- Classic queue line: Lamport-style SPSC rings, LMAX Disruptor (`https://lmax-exchange.github.io/disruptor/user-guide/`), Michael-Scott queues (`https://www.cs.rochester.edu/research/synchronization/pubs.shtml`), and Vyukov bounded MPMC rings (`https://docs.ros.org/en/kinetic/api/ros_opcua_impl_freeopcua/html/mpmc__bounded__q_8h_source.html`).
+- SPSC mental model: fixed-size ring first. Dynamic growth is a different problem because resize changes ownership, reclamation, and full/empty invariants.
+- Multiplicity rule: SPSC uses producer-owned tail and consumer-owned head; MPSC adds contention only on producer claim; MPMC adds contention on both claim sides and usually needs per-slot sequence numbers.
+- Go boundary: use `sync/atomic` for sequence publication and CAS-based slot claims. Channels are a semantic comparison point, not the implementation of lock-free queue items.
+- Reclamation boundary: linked unbounded queues should wait for `hazard/` or `reclamation/` even though Go GC keeps nodes alive; the study goal is to understand the non-GC proof.
+- Interview artifact: for every queue, document capacity policy, linearization point, progress guarantee, and slow-consumer behavior before benchmarking throughput.
 
 ## Implementation Checklist
 
@@ -46,15 +55,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Only safe with exactly one consumer; capacity is fixed.
   - Scenarios: Network thread to strategy thread handoff, logging, telemetry ingestion.
 
-- [~] LockFreeSPSC
+- [x] LockFreeSPSC
   - Core Concept: A single producer and single consumer can use cached head/tail snapshots to reduce cross-core loads.
-  - Pros: Highest ROI queue for low-latency systems; fewer atomics than MPSC/MPMC.
-  - Cons: `lockfree_spsc.go` currently only declares the package.
+  - Pros: Highest ROI queue for low-latency systems; fewer atomics than MPSC/MPMC; implemented by `CachedSPSCQueue` with SPSC correctness, chaos, benchmark, padding, and cache-refresh coverage.
+  - Cons: Only safe with exactly one producer and one consumer; capacity is fixed.
   - Scenarios: HFT pipelines, market-data ingestion, thread-per-core systems.
 
-- [ ] LamportSPSCRing
+- [x] LamportSPSCRing
   - Core Concept: A bounded circular buffer uses producer-owned tail and consumer-owned head with acquire/release publication.
-  - Pros: Minimal lock-free queue and best first memory-ordering exercise.
+  - Pros: Minimal lock-free queue and best first memory-ordering exercise; implemented by `SPSCQueue` and covered by empty/full/FIFO/wraparound/concurrent SPSC tests.
   - Cons: Only supports one producer and one consumer; full/empty detection must be exact.
   - Scenarios: Audio buffers, feed-handler handoff, core-to-core pipelines.
 
@@ -112,10 +121,10 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: API and waiter matching are complex.
   - Scenarios: Executor handoff queues, actor ask/reply, service backpressure experiments.
 
-- [ ] LMAXDisruptor
+- [~] LMAXDisruptor
   - Core Concept: A sequenced ring broadcasts slots to consumers that track their own progress rather than consuming items.
-  - Pros: Avoids per-consumer allocation and supports dependency graphs among consumers.
-  - Cons: More complex than a transfer queue; slow consumers constrain wraparound.
+  - Pros: Avoids per-consumer allocation and supports dependency graphs among consumers; `Sequence` and `WaitStrategy` scaffolds are present.
+  - Cons: Ring buffer, sequencer, sequence barrier, gating consumers, and working wait strategies are not implemented yet.
   - Scenarios: Matching engines, market-data fan-out, journaling/replication pipelines.
 
 - [ ] MulticastRingBuffer

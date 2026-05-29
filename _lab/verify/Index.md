@@ -13,6 +13,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: high for correctness-focused systems roles because it shows you do not trust intuition alone.
 - Scope rule: every checker should ship with at least one deliberately broken implementation or schedule that it catches.
 
+## Reference Trail and Go Boundary
+
+- Correctness references: Herlihy-Wing linearizability, Porcupine (`https://github.com/anishathalye/porcupine`), Jepsen consistency models (`https://jepsen.io/consistency/models/linearizable`), Eraser (`https://homes.cs.washington.edu/~tom/pubs/eraser.html`), ThreadSanitizer (`https://research.google.com/pubs/archive/35604.pdf`), and Go `testing/synctest` (`https://go.dev/blog/synctest`).
+- Mental model: testing concurrent code requires a model of allowed histories. Stress without a model only says "this run did not fail."
+- Go boundary: `go test -race` is necessary but not sufficient; it finds data races, not wrong linearization points, lost wakeups, starvation, or broken backpressure policy.
+- History boundary: record invocation, response, arguments, results, and goroutine identity. Without intervals, a linearizability checker has no real-time constraint to check.
+- Determinism boundary: use fake clocks, hooks, and bounded schedulers where possible; random sleeps are a supplement, not a proof.
+- Interview artifact: every checker should include one passing real implementation and one intentionally broken implementation that fails for the expected reason.
+
 ## Implementation Checklist
 
 - [ ] LinearizabilityChecker

@@ -14,6 +14,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: strongest for distributed databases, crypto/L1 systems, causal broadcast, and collaborative systems.
 - Scope rule: this package covers both logical causality clocks and deterministic local clocks needed to test time-based concurrency.
 
+## Reference Trail and Go Boundary
+
+- Classic clock line: Lamport clocks (`https://www.microsoft.com/en-us/research/publication/time-clocks-ordering-events-distributed-system/`), vector clocks from Fidge/Mattern, and hybrid logical clocks.
+- Mental model: logical time encodes causality, not physical truth. Lamport gives a causality-compatible scalar; vector clocks tell whether events are ordered or concurrent.
+- Go boundary: these clocks are ordinary data structures plus synchronization around updates. They are not replacements for `memory/` happens-before inside one process.
+- Test boundary: `ManualClock`, `TimerWheel`, and `DeadlineHeap` are local deterministic testing tools; Lamport/vector/HLC clocks are distributed causality tools.
+- Metadata boundary: vector and dotted clocks need membership and compaction rules, otherwise metadata grows without bound.
+- Interview artifact: every clock should include compare/merge examples for ordered, concurrent, and tie-breaker cases.
+
 ## Implementation Checklist
 
 - [ ] LamportClock

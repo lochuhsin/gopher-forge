@@ -13,6 +13,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: strongest when you can name the architecture, not just the primitives: Reactor, Active Object, Disruptor, and Half-Sync/Half-Async are standard senior vocabulary.
 - Scope rule: this lab should compose portable concepts; OS-specific IO APIs can be described, but examples should run with Go channels, queues, contexts, and fake clocks.
 
+## Reference Trail and Go Boundary
+
+- Pattern references: POSA2 concurrent/networked patterns (`https://www.cs.wm.edu/~dcschmidt/POSA/POSA2/`), Go pipelines (`https://go.dev/blog/pipelines`), Go share-by-communicating (`https://go.dev/blog/share-memory-by-communicating`), and LMAX Disruptor (`https://lmax-exchange.github.io/disruptor/user-guide/`).
+- Mental model: a pattern is a wiring diagram plus ownership rules plus overload policy. It should make primitive composition visible, not hide it.
+- Go boundary: examples should be portable Go unless the item explicitly studies OS-specific Reactor/Proactor mechanics.
+- Backpressure boundary: every pattern that queues work must name what happens when downstream is slower: block, drop, shed, buffer, replace, or cancel.
+- Lifecycle boundary: every pattern should define startup, cancellation, drain, close, and failure propagation.
+- Interview artifact: each pattern should include a diagram or trace that maps architecture nodes back to concrete packages in this repo.
+
 ## Implementation Checklist
 
 - [ ] MonitorObject

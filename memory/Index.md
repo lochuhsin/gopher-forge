@@ -14,19 +14,29 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: highest for low-level systems and HFT-style work because it gives the vocabulary for lock-free correctness.
 - Scope rule: keep this package about portable concepts: atomic operations, happens-before, publication, progress guarantees, ABA, and litmus tests; architecture-specific assembly fences belong only as explanatory notes.
 
+## Reference Trail and Go Boundary
+
+- Primary Go references: Go memory model (`https://go.dev/ref/mem`) and `sync/atomic` (`https://pkg.go.dev/sync/atomic`). Go atomics are the public substrate; they are not optional decoration around ordinary racy fields.
+- Correctness reference: Herlihy and Wing linearizability (`https://www.cs.cmu.edu/~wing/publications/HerlihyWing90.pdf`) gives the "one instant between call and return" model used by queues, stacks, maps, and checkers.
+- Substrate boundary: implement CAS, fetch-add, swap, and atomic pointer publication by calling `sync/atomic`; do not pretend to implement those hardware read-modify-write operations from ordinary Go loads and stores.
+- Mental model: every item should name the protected location, the write that publishes, the read that observes, the happens-before edge, and the progress class.
+- ABA focus: treat ABA as "same representation, different logical object." Go GC hides many reuse bugs, so ABA labs should use tagged indexes, simulated allocators, unsafe experiments, or reclamation integration instead of pretending GC makes the concept disappear.
+- Interview artifact: each memory item should be explainable as a small state machine plus a two-goroutine trace, because most lock-free interview failures come from mixing visibility, atomicity, and ownership.
+
 ## Implementation Checklist
 
 - [~] OrderingScaffold
-  - Core Concept: The package exists as the home for memory-ordering examples, but `ordering.go` currently only declares `package memory`.
+  - Core Concept: The package exists as the home for memory-ordering examples; `ordering.go` is still empty, while `atomic.go` now contains the first executable atomic cell example.
   - Pros: Gives the repo a dedicated foundation layer for every lock-free structure.
-  - Cons: No executable examples or docs live in the package yet.
+  - Cons: Ordering-specific examples and documentation are still missing beyond basic atomic load/store.
   - Scenarios: Next step before queue, stack, hazard pointer, RCU, and atomics-heavy work.
 
-- [ ] AtomicLoadStore
-  - Core Concept: Single-location atomic reads and writes provide tear-free access and, in Go, sequentially consistent ordering.
-  - Pros: Foundation for ready flags, published pointers, counters, and lock-free metadata.
-  - Cons: Does not make a multi-field invariant atomic by itself.
+- [x] AtomicLoadStore
+  - Core Concept: `AtomicCell[T]` publishes value copies through an atomic pointer, and `Load` observes either the latest published value or T's zero value.
+  - Pros: Foundation for ready flags, published pointers, counters, and lock-free metadata; covered by basic, zero-value, overwrite, pointer, copy, and concurrent no-tear tests.
+  - Cons: Does not make a multi-field invariant atomic by itself, and it intentionally covers only load/store rather than CAS or arithmetic.
   - Scenarios: Publication flags, seqlock counters, RCU pointers, queue slot states.
+  - Substrate: `sync/atomic.Pointer[T]`; linearization point is the atomic call; progress is wait-free; publishes only the cell pointer, not unrelated reachable fields.
 
 - [ ] CompareAndSwap
   - Core Concept: CAS updates a location only if it still contains the expected value.

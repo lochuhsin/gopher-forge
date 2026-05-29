@@ -18,6 +18,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: high for senior Go because context, errgroup, deadlines, and graceful shutdown are practical interview and production topics.
 - Scope rule: structured concurrency items are included when they enforce ownership and bounded lifetime, not just because a language has an async keyword.
 
+## Reference Trail and Go Boundary
+
+- Primary Go references: `context` cancellation trees (`https://go.dev/blog/context`) and `errgroup` (`https://pkg.go.dev/golang.org/x/sync/errgroup`).
+- Mental model: context is a signal; scope is ownership. A correct scope owns spawn, cancellation, waiting, and result/error collection.
+- Go boundary: goroutines cannot be killed safely. Cancellation is cooperative and must be checked by workers, blocking waits, queues, and futures.
+- Deadline boundary: time-based APIs should depend on `clock/` abstractions so tests do not sleep on wall time.
+- Duplicate-suppression boundary: `SingleFlightGroup` belongs here only when caller cancellation, producer ownership, and result lifetime are part of the contract; the lower state machine can live in `syncx/`.
+- Interview artifact: every scope primitive should answer "who cancels whom, who waits for whom, and what happens to partial results?"
+
 ## Implementation Checklist
 
 - [ ] CancellationToken

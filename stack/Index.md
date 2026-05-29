@@ -14,6 +14,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Career signal: lower than queues, but Treiber plus ABA plus reclamation is a classic senior systems interview topic.
 - Scope rule: keep stack variants focused on CAS hotspots, ABA, reclamation, and contention mitigation; exotic language-specific allocator tricks belong in notes, not required implementations.
 
+## Reference Trail and Go Boundary
+
+- Classic stack line: Treiber stack (`https://en.wikipedia.org/wiki/Treiber_stack`), Herlihy-Wing linearizability, hazard pointers, and elimination backoff.
+- Mental model: Treiber push/pop linearize at the successful CAS on `head`; every failed CAS is evidence that somebody else changed the abstract stack.
+- ABA boundary: Go GC prevents many use-after-free crashes, but not the logical stale-observation problem when nodes or indexes are reused. Use tagged pointers/indexes or simulated freelists for ABA labs.
+- Reclamation boundary: a non-GC Treiber stack is incomplete without hazard pointers, epochs, or tags. Keep the current Go version honest by naming it "GC-assisted educational Treiber."
+- Contention boundary: elimination helps only when push and pop traffic can pair; it is not a universal faster stack.
+- Interview artifact: be able to draw the A -> B -> A head sequence and explain why the CAS succeeds while the logical stack changed.
+
 ## Implementation Checklist
 
 - [x] MutexSliceMPMC
