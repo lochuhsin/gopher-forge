@@ -93,3 +93,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Strong progress guarantee.
   - Cons: Considerably more complex and rarely worth the constant factor.
   - Scenarios: Advanced progress taxonomy and academic comparison.
+
+- [ ] CombiningTreeStack
+  - Core Concept: Push/pop requests combine up a tree so contending operations cancel or merge before reaching the central top pointer.
+  - Pros: Reduces head contention from O(N) to a small fan-in under heavy load.
+  - Cons: Adds tree-traversal latency at low contention and is sensitive to tree shape.
+  - Scenarios: Many-core stack scaling, combining-vs-elimination comparison.
+
+- [ ] TreiberWithHazardEras
+  - Core Concept: Protect the observed head with a hazard era (not just a hazard pointer) before dereference, then retire the old head with an era stamp.
+  - Pros: Treiber safety at lower reader cost than per-pointer hazard publication, with bounded memory.
+  - Cons: Requires birth/retire era stamps on nodes and an era clock, more state than plain Treiber.
+  - Scenarios: Modern reclamation-backed Treiber, hazard-pointer-vs-eras benchmark.

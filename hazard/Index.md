@@ -93,3 +93,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Enables safe unbounded lock-free queues.
   - Cons: Requires multiple hazard slots and careful helping paths.
   - Scenarios: `queue/` unbounded MPMC implementation.
+
+- [ ] HazardEras
+  - Core Concept: Hazard Eras (Ramalhete-Correia 2017) merge hazard pointers with epoch-style eras, so a reader publishes the era it is reading instead of every pointer.
+  - Pros: Far fewer per-access stores than classic hazard pointers while keeping bounded reclamation even if a reader stalls.
+  - Cons: Requires per-object birth/retire era stamps and an era clock, more state than plain hazard slots.
+  - Scenarios: Modern lock-free queues/maps wanting HP safety at lower reader cost, HP-vs-EBR-vs-HE comparison.
+
+- [ ] OptimisticHazardAccess
+  - Core Concept: Read the pointer optimistically, dereference, then validate the hazard slot still protects it, avoiding the store-load fence on the fast path.
+  - Pros: Removes the expensive fence from the common no-contention read path.
+  - Cons: Must detect and retry an invalidated optimistic read safely, which constrains which structures it fits.
+  - Scenarios: Read-heavy lock-free traversals, hazard-pointer fast-path optimization labs.

@@ -635,7 +635,7 @@ Evidence:
 - Signal value: demonstrates understanding of work-stealing task scheduler internals
 ```
 
-### map/ (concurrent hash map)
+### mapx/ (concurrent hash map)
 
 ```
 HFT relevance: ★★★☆☆

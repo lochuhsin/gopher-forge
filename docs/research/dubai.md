@@ -98,7 +98,7 @@ Top 5:
 - syncx/STM: ★★★☆☆ — interesting for blockchain
 - queue/: ★★★★☆ — market data ring buffer
 - stack/: ★★☆☆☆
-- map/: ★★★☆☆
+- mapx/: ★★★☆☆
 - deque/: ★★☆☆☆
 - memory/: ★★★☆☆
 - hazard/: ★★★☆☆

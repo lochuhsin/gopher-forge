@@ -99,3 +99,51 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Simple and directly observable.
   - Cons: Queue depth is a lagging signal and does not capture downstream latency alone.
   - Scenarios: Pipeline stages, actor mailboxes, worker pools.
+
+- [ ] CoDel
+  - Core Concept: Controlled Delay (Nichols-Jacobson 2012) is a parameterless AQM that tracks the minimum queue sojourn time over an interval and sheds when a standing queue persists past a target.
+  - Pros: Self-tuning ("no knobs") backpressure that targets latency, not just queue length.
+  - Cons: Tracks time-in-queue not depth, so it needs per-item enqueue timestamps.
+  - Scenarios: Server request queues, latency-based load shedding, bufferbloat-style overload control.
+
+- [ ] AdaptiveLIFO
+  - Core Concept: Serve FIFO under normal load but switch to LIFO once a queue forms so fresh, un-timed-out requests run first (Facebook, paired with CoDel).
+  - Pros: Maximizes the fraction of requests served within deadline during overload.
+  - Cons: Reorders work and can starve old requests, so it pairs with a shedding policy.
+  - Scenarios: Overload latency control, deadline-aware serving, API gateway protection.
+
+- [ ] GradientConcurrencyLimiter
+  - Core Concept: Netflix Gradient limiters set newLimit = limit x (RTTnoload/RTTactual) + queue, shrinking the concurrency limit as latency rises.
+  - Pros: Adapts to changing downstream capacity using only latency, with no fixed RPS to go stale.
+  - Cons: Needs a reliable no-load RTT baseline and can oscillate without smoothing (Gradient2).
+  - Scenarios: RPC client admission, autoscaling backends, inference gateway concurrency.
+
+- [ ] VegasConcurrencyLimiter
+  - Core Concept: A TCP-Vegas-style limiter estimates queued work as L x (1 - minRTT/sampleRTT) and nudges the limit up or down around alpha/beta thresholds.
+  - Pros: Delay-based, smooth limit adjustment that detects queuing before loss.
+  - Cons: Sensitive to minRTT estimation and clock noise.
+  - Scenarios: Adaptive concurrency limits, latency-sensitive admission, concurrency-limits study.
+
+- [ ] LittlesLawConcurrency
+  - Core Concept: Little's Law (L = arrival rate x latency) ties a concurrency limit to observed RPS and latency for capacity reasoning.
+  - Pros: Gives a principled way to size and validate concurrency limits.
+  - Cons: Assumes a stable system in steady state, which bursty traffic violates.
+  - Scenarios: Capacity planning, limit validation, queueing-theory grounding for limiters.
+
+- [ ] DeficitRoundRobin
+  - Core Concept: DRR (Shreedhar-Varghese 1995) gives each flow a per-round quantum plus a carried deficit, serving up to quantum+deficit bytes in O(1).
+  - Pros: O(1) fair queueing across flows with variable item sizes.
+  - Cons: Quantum choice trades latency against fairness granularity.
+  - Scenarios: Per-tenant fair scheduling, multi-flow shaping, weighted-share serving.
+
+- [ ] WeightedFairQueueing
+  - Core Concept: WFQ approximates generalized processor sharing by assigning virtual finish times so flows get bandwidth proportional to weights.
+  - Pros: Strong fairness and weighted isolation between competing flows.
+  - Cons: Virtual-time bookkeeping is O(log n) per item, heavier than DRR.
+  - Scenarios: QoS scheduling, weighted tenant isolation, fair-queueing comparison.
+
+- [ ] HierarchicalTokenBucket
+  - Core Concept: HTB arranges token buckets in a class hierarchy where idle parents lend spare rate to busy children within ceilings.
+  - Pros: Expressive classful shaping with borrowing, the model behind Linux tc HTB.
+  - Cons: Class-tree configuration and borrow accounting are complex to tune.
+  - Scenarios: Multi-class bandwidth shaping, tenant hierarchies, egress rate control.

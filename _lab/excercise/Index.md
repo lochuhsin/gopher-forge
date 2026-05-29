@@ -9,7 +9,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - This lab should solve puzzles with existing primitives only. Do not introduce new synchronization primitives here.
 - Each exercise should ideally have two or three versions, such as mutex/cond, channels, and semaphores, then compare fairness and failure modes.
 - Recommended build order from the merged TODO: Print in Order, Dining Philosophers, Readers-Writers, Sleeping Barber, Cigarette Smokers, H2O, Roller Coaster, Santa Claus, river/invariant puzzles, then larger free-form exercises.
-- Dependencies: imports `syncx/` and the standard library; larger exercises may also use `queue/`, `map/`, `ratelimit/`, and `actor/`.
+- Dependencies: imports `syncx/` and the standard library; larger exercises may also use `queue/`, `mapx/`, `ratelimit/`, and `actor/`.
 - Career signal: useful for whiteboard concurrency and for explaining deadlock, starvation, fairness, and group rendezvous.
 - Scope rule: exercises should reuse package primitives and compare multiple solutions; avoid puzzle variants that only test language syntax.
 
@@ -110,3 +110,45 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Separates safety from liveness in a tangible way.
   - Cons: Reproducing liveness failures may require scheduler hooks or stress loops.
   - Scenarios: RWMutex starvation, dining philosopher variants, backoff tuning.
+
+- [ ] DiningSavages
+  - Core Concept: Savages eat from a shared pot and the cook refills it only when empty, coordinated by counting and condition signaling.
+  - Pros: Classic single-producer-on-empty rendezvous distinct from bounded-buffer patterns.
+  - Cons: The "last one wakes the cook" handoff is easy to get wrong.
+  - Scenarios: Little Book of Semaphores practice, refill-on-empty coordination.
+
+- [ ] SushiBar
+  - Core Concept: Bounded seats where, once full, arriving customers wait for the whole current party to leave before any sit (group constraint).
+  - Pros: Combines capacity limits with a group-departure rule that breaks naive counting.
+  - Cons: The transition between filling and draining states hides subtle races.
+  - Scenarios: Group-admission puzzles, capacity-with-phase coordination.
+
+- [ ] FaneuilHallSenateBus
+  - Core Concept: Passengers board while a bus is present and the bus departs only after boarding completes, with arrivals-during-boarding handled correctly.
+  - Pros: Exercises arrival-versus-departure races and barrier-like group release.
+  - Cons: The boarding/departing handoff and late arrivals are the tricky cases.
+  - Scenarios: Batch-departure coordination, Little Book of Semaphores practice.
+
+- [ ] SearchInsertDelete
+  - Core Concept: Three access classes where searchers share, inserters exclude other inserters, and deleters exclude everyone (Downey).
+  - Pros: Generalizes readers-writers to a richer access lattice.
+  - Cons: Getting the three exclusion relations right without starvation is delicate.
+  - Scenarios: Fine-grained list access, RW-lock generalization, concurrent-collection rules.
+
+- [ ] ZeroEvenOdd
+  - Core Concept: Three goroutines print zero, odd, zero, even in strict order using handoff signaling (LeetCode 1116).
+  - Pros: Compact three-way semaphore/handoff exercise with a precise output contract.
+  - Cons: Too small to expose contention; purely an ordering drill.
+  - Scenarios: LeetCode concurrency set, semaphore-handoff warm-up.
+
+- [ ] TrafficLightController
+  - Core Concept: Concurrent cars on two roads cross through a single mutable light, requiring mutual exclusion on the shared intersection (LeetCode 1279).
+  - Pros: Maps a real-world mutual-exclusion scenario to a single-lock invariant.
+  - Cons: Naive solutions over-synchronize and serialize same-direction traffic.
+  - Scenarios: LeetCode concurrency, single-resource mutual exclusion practice.
+
+- [ ] MorrisNoStarveMutex
+  - Core Concept: Morris's three-semaphore algorithm builds a starvation-free mutex from weak semaphores using two gates.
+  - Pros: Proves bounded waiting is achievable from weak primitives.
+  - Cons: The two-gate turnstile structure is easy to misorder.
+  - Scenarios: Fairness construction, weak-to-strong primitive building, starvation-freedom study.

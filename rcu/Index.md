@@ -99,3 +99,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Tests the actual safety property rather than only API shape.
   - Cons: Requires deterministic hooks to hold readers across writer publication.
   - Scenarios: `_lab/verify` integration, grace-period debugging, QSBR/URCU comparison.
+
+- [ ] CallRCUBatching
+  - Core Concept: Batch many deferred `CallRCU` callbacks into one grace period so reclamation cost is amortized across retirements.
+  - Pros: Keeps writer latency low and reduces grace-period overhead under heavy update rates.
+  - Cons: Requires generation tracking and a flush/barrier path so shutdown and tests stay deterministic.
+  - Scenarios: High-churn RCU maps/lists, deferred-free throughput tuning.
+
+- [ ] ClassicLinuxRCUModel
+  - Core Concept: Document the kernel preempt-disable read side where a grace period is the moment every CPU has passed through a context switch.
+  - Pros: Anchors userspace RCU against the canonical design and explains quiescent-state intuition.
+  - Cons: Go has no preempt-disable or per-CPU context-switch signal, so this is reference material, not runnable code.
+  - Scenarios: Kernel-style RCU explanation, URCU/QSBR motivation, interview depth on read-mostly systems.

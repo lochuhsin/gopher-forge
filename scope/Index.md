@@ -115,3 +115,33 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Turns cancellation policy into measurable latency/overhead tradeoffs.
   - Cons: Benchmark results depend heavily on workload.
   - Scenarios: Runtime tuning and cancellation checkpoint design.
+
+- [ ] TimeoutScope
+  - Core Concept: A timeout scope (Trio move_on_after / fail_after) wraps a block so its deadline cancels all child tasks together when it expires.
+  - Pros: Composable, structured timeouts that clean up children instead of leaking them.
+  - Cons: Cancellation is cooperative, so children must honor it for the deadline to take effect.
+  - Scenarios: Request deadlines, bounded fan-out, cancel-on-timeout pipelines.
+
+- [ ] StructuredTaskScopePolicies
+  - Core Concept: Java StructuredTaskScope-style join policies (ShutdownOnFailure, ShutdownOnSuccess) decide when a scope cancels remaining children.
+  - Pros: Encodes fail-fast and first-success semantics as a reusable, named policy.
+  - Cons: Result and error collection rules must be made explicit per policy.
+  - Scenarios: Parallel fan-out, fastest-wins races, all-or-nothing task groups.
+
+- [ ] SupervisorScopeSemantics
+  - Core Concept: A supervisor scope (Kotlin supervisorScope) isolates child failures so one failing child does not cancel its siblings.
+  - Pros: Allows independent children where partial failure is acceptable.
+  - Cons: Callers must collect and handle individual child errors explicitly.
+  - Scenarios: Independent background tasks, best-effort fan-out, partial-failure-tolerant groups.
+
+- [ ] TaskLocalStorage
+  - Core Concept: Task-local values (Go context values, Trio task-locals) propagate contextual data to child tasks without globals.
+  - Pros: Carries request-scoped data like trace IDs across a task tree cleanly.
+  - Cons: Overuse hides dependencies, and value lifetime and typing must be disciplined.
+  - Scenarios: Tracing/correlation IDs, request-scoped config, deadline propagation.
+
+- [ ] GatherWithConcurrency
+  - Core Concept: Run many child tasks but cap simultaneous execution with a semaphore, collecting all results when done.
+  - Pros: Bounds resource use while still gathering every result in a structured scope.
+  - Cons: A slow task delays the whole gather, and the cap affects throughput.
+  - Scenarios: Bounded parallel queries, scatter-gather with limits, API fan-out caps.

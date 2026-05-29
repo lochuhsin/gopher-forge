@@ -13,7 +13,7 @@ are no longer treated as authoritative.
 Use these documents as the current system map:
 
 - Foundation: `memory/Index.md`, `syncx/Index.md`, `park/Index.md`
-- Data structures: `queue/Index.md`, `stack/Index.md`, `map/Index.md`, `deque/Index.md`
+- Data structures: `queue/Index.md`, `stack/Index.md`, `mapx/Index.md`, `deque/Index.md`
 - Reclamation/read-mostly: `hazard/Index.md`, `reclamation/Index.md`, `rcu/Index.md`
 - Runtime/patterns: `scope/Index.md`, `actor/Index.md`, `parallel/Index.md`, `_lab/pattern/Index.md`
 - Verification: `_lab/verify/Index.md`
@@ -248,7 +248,7 @@ flowchart TD
 
   queue["queue/\nSPSC, MPSC, MPMC, Disruptor, Michael-Scott"]
   stack["stack/\nTreiber, elimination, ABA experiments"]
-  mapPkg["map/\nsharded, LRU, COW, lock-free maps"]
+  mapPkg["mapx/\nsharded, LRU, COW, lock-free maps"]
   deque["deque/\nChase-Lev, work stealing"]
 
   verify["_lab/verify/\nhistory, race, linearizability, litmus"]
@@ -334,7 +334,7 @@ inspectable artifact or a deliberate scaffold with tests where appropriate.
 | `park/` | `Parker`, `WaitNode`, `QueuedSynchronizer`, `PermitParker`, `SpuriousWakeupContract` | Register-before-sleep, waiter queues, wake-one vs broadcast, lost wakeups | Needed before custom sleeping primitives become credible |
 | `queue/` | `LamportSPSCRing`, finish `LockFreeSPSC`, SPSC tests, `BlockingBoundedQueue`, `BoundedChannelPolicy` baseline | FIFO, producer/consumer ownership, full/empty, backpressure and drop policy | Highest shared signal for HFT, exchange, streaming, AI inference |
 | `stack/` | `TreiberABAExperiment`, invariants for existing Treiber stack | CAS loops, ABA, linearization point | Bridges current stack code to memory/reclamation learning |
-| `map/` | `ShardedMutexMap`, `ThreadSafeLRU` | Sharding, lock striping, recency mutation on reads | FAANG/top-tier interview floor |
+| `mapx/` | `ShardedMutexMap`, `ThreadSafeLRU` | Sharding, lock striping, recency mutation on reads | FAANG/top-tier interview floor |
 | `deque/` | `MutexDeque`, `BoundedRingDeque` | Double-ended ownership, baseline before Chase-Lev | Prepares work stealing without weak-memory complexity |
 | `ratelimit/` | `TokenBucket`, `SlidingWindowCounter`, `Bulkhead` | Admission control, local counters, bounded concurrency | Direct interview utility for FAANG, Dubai, fintech, inference |
 | `scope/` | `CancellationToken`, `ErrGroupClone`, `TaskGroup`, `SingleFlightGroup` | Goroutine lifetime ownership, duplicate suppression, and failure propagation | Required Go senior mental model |
@@ -371,7 +371,7 @@ benchmarked, or composed into a recognizable system?
 | `park/` | `WaiterQueue`, `CancellationSafeWaiterRemoval`, `TimeoutPark`, `WakerRegistration`, `AtomicWaitNotify` | cancellation-safe wait queues and wakeup-race tests |
 | `queue/` | SPSC/channel/MPSC/MPMC p99 benchmark, `LossyBoundedQueue`, `LMAXDisruptor`, `MulticastRingBuffer`, `LaggingReceiverPolicy` | p50/p95/p99 report; slow-consumer policy matrix; channel allocation comparison |
 | `stack/` | `EliminationArray`, `TreiberWithTaggedPointer`, bug-catching tests | ABA demonstration and elimination-backoff contention benchmark |
-| `map/` | `StripedRWMutexMap`, `SyncMapClone`, `CopyOnWriteMap` | read-heavy vs write-heavy benchmark; weak iteration and snapshot semantics |
+| `mapx/` | `StripedRWMutexMap`, `SyncMapClone`, `CopyOnWriteMap` | read-heavy vs write-heavy benchmark; weak iteration and snapshot semantics |
 | `deque/` | `ChaseLevDeque`, `StealPolicyExperiments` | owner-fast/thief-CAS model and work-stealing stress tests |
 | `ratelimit/` | `GCRA`, `CircuitBreaker`, `LoadShedding`, `QueueDepthBackpressure` | overload policy benchmark and failure-domain demo |
 | `scope/` | `TokenTree`, `BoundedTaskGroup`, `DeadlineScheduler`, `CooperativeCancellationBenchmark`, `SingleFlightGroup` benchmarks | cancellation propagation, duplicate suppression, and bounded concurrency under deadlines |
@@ -404,7 +404,7 @@ Phase 3 builds the high-moat artifacts that map directly to target verticals.
 | `park/` | `FutexWaitWake`, `FutexMutex`, `AtomicWaitNotify`, `QueuedSynchronizer`, `SchedulerHandoff` | sleeping mutex and runtime internals study |
 | `queue/` | `MichaelScottQueue`, `VyukovIntrusiveMPSC`, `SPMCRing`, `DelayQueue`, optional `WaitFreeQueue` study | deep lock-free queue, timer queue, and runtime scheduler stories |
 | `stack/` | `TreiberWithHazardPointers`, `LockFreeFreelist`, `FlatCombiningStack` | reclamation-backed Treiber proof |
-| `map/` | `LeftRightMap`, `RCUMap`, `LockFreeOpenAddressingMap`, `ConcurrentResizeProtocol` | database/vector/routing-table read-mostly systems |
+| `mapx/` | `LeftRightMap`, `RCUMap`, `LockFreeOpenAddressingMap`, `ConcurrentResizeProtocol` | database/vector/routing-table read-mostly systems |
 | `deque/` | `WorkStealingInjector`, `WorkStealingPool`, `ResizableChaseLevDeque` | parallel runtime and `crossbeam-deque` interview transfer |
 | `ratelimit/` | `AdaptiveConcurrencyLimiter`, `PriorityLimiter`, `DistributedLimiter`, `CreditBasedBackpressure` | inference gateway, exchange risk gate, fintech hot path |
 | `scope/` | `Nursery`, `ResultGroup`, `ResourceScope`, `JoinOnScopeExit` | structured concurrency library-quality story |
@@ -462,7 +462,7 @@ Pull forward:
 - `parallel/ParallelReduce`, `parallel/PipelineWithBackpressure`
 - `syncx/STM`
 - `clock/LamportClock`, `clock/VectorClock`
-- `map/ShardedMutexMap`
+- `mapx/ShardedMutexMap`
 - `reclamation/EpochBasedReclamation`
 - Rust Treiber with `crossbeam-epoch`
 
@@ -508,7 +508,7 @@ Pull forward:
 - `queue/LamportSPSCRing`
 - `_lab/pattern/ThreadPerCore`
 - `parallel/PipelineWithBackpressure`
-- `map/ThreadSafeLRU`, `map/CopyOnWriteMap`
+- `mapx/ThreadSafeLRU`, `mapx/CopyOnWriteMap`
 - `rcu/RCUPointer`
 - `arena/BumpAllocator`
 
@@ -522,8 +522,8 @@ bounded queue -> thread-safe map/LRU -> rate limiter -> context cancellation
 Pull forward:
 
 - `queue/BlockingBoundedQueue`
-- `map/ShardedMutexMap`
-- `map/ThreadSafeLRU`
+- `mapx/ShardedMutexMap`
+- `mapx/ThreadSafeLRU`
 - `ratelimit/TokenBucket`
 - `ratelimit/CircuitBreaker`
 - `scope/CancellationToken`

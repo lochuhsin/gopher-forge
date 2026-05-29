@@ -93,3 +93,27 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Prevents flaky sleeps and centralizes timer cleanup rules.
   - Cons: API design must avoid leaking timers or goroutines.
   - Scenarios: Periodic maintenance, rate limiter refill, actor heartbeats.
+
+- [ ] IntervalTreeClock
+  - Core Concept: Interval Tree Clocks (Almeida-Baquero-Fonte 2008) track causality with fork-event-join stamps over [0,1) id intervals, needing no global IDs or fixed membership.
+  - Pros: Handles dynamic replica sets by forking and joining stamps without coordination.
+  - Cons: The binary-tree id/event encoding is harder to implement and explain than plain vectors.
+  - Scenarios: Dynamic distributed membership, peer churn, CRDT metadata without static replica IDs.
+
+- [ ] TrueTimeBoundedClock
+  - Core Concept: Google Spanner's TrueTime returns a [earliest, latest] uncertainty interval and uses commit-wait so timestamps are externally consistent.
+  - Pros: Turns clock uncertainty into an explicit interval, enabling linearizable cross-shard transactions.
+  - Cons: Real bounds need GPS/atomic clocks, so in Go this is simulated with an injected uncertainty interval.
+  - Scenarios: Distributed-DB timestamp study, external consistency, commit-wait simulation.
+
+- [ ] BloomClock
+  - Core Concept: A Bloom clock encodes causal history in a counting Bloom filter to test happens-before probabilistically in sublinear space.
+  - Pros: Space-efficient causality for very large replica sets where vector clocks are too big.
+  - Cons: False positives can report concurrent events as ordered, so it is approximate.
+  - Scenarios: Large-scale causality, space-bounded metadata, probabilistic ordering study.
+
+- [ ] HierarchicalTimingWheel
+  - Core Concept: Hierarchical timing wheels (Varghese-Lauck 1987) cascade multiple wheels so a wide range of timer durations gets O(1) start/stop.
+  - Pros: Scales to huge timer counts across a broad duration range without a per-timer heap.
+  - Cons: Cascading between levels and granularity choice add complexity over a single wheel.
+  - Scenarios: Connection timeouts at scale, scheduler timers, large deadline populations.

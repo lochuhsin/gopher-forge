@@ -93,7 +93,7 @@ treating the entire tree as a polished library release.
 | [`hazard/`](hazard/) | Hazard pointers and safe lock-free reclamation | Index and package scaffold |
 | [`reclamation/`](reclamation/) | Epoch, quiescent-state, and interval-based reclamation | Roadmap index |
 | [`rcu/`](rcu/) | Read-Copy-Update and grace-period tracking | Roadmap index |
-| [`map/`](map/) | Concurrent maps, sharding, copy-on-write, lock-free hashing | Roadmap index |
+| [`mapx/`](mapx/) | Concurrent maps, sharding, copy-on-write, lock-free hashing | Roadmap index |
 | [`deque/`](deque/) | Work-stealing deques and owner-fast scheduling structures | Roadmap index |
 | [`park/`](park/) | Park/unpark contracts and lost-wakeup avoidance | Roadmap index |
 | [`scope/`](scope/) | Structured concurrency, cancellation, deadlines | Roadmap index |

@@ -69,3 +69,27 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Makes scheduling fairness and locality measurable.
   - Cons: Results depend on workload shape and benchmark design.
   - Scenarios: Parallel runtime tuning, irregular workloads, actor scheduler integration.
+
+- [ ] CilkTHEProtocol
+  - Core Concept: The Cilk THE work-stealing protocol (Blumofe-Leiserson) lets the owner push/pop the tail with plain loads/stores and falls back to a lock only when a thief contends the last item.
+  - Pros: Near-zero owner overhead on the common path, the historical foundation Chase-Lev later refined.
+  - Cons: The last-item exception path needs a lock and careful ordering, and it predates fully lock-free deques.
+  - Scenarios: Fork/join runtime study, work-stealing history, Chase-Lev motivation.
+
+- [ ] IdempotentWorkStealing
+  - Core Concept: Michael-Vechev-Saraswat (2009) relax work-stealing so a task may be extracted more than once, making owner operations cheap with only stores.
+  - Pros: Cheapest owner path of the work-stealing family when tasks are idempotent.
+  - Cons: Requires idempotent tasks because the same item can run twice; not a strict deque.
+  - Scenarios: Idempotent task schedulers, relaxed work-stealing study, throughput-first runtimes.
+
+- [ ] BWoSDeque
+  - Core Concept: Block-based Work Stealing partitions the deque into blocks so owner and thieves touch different blocks, slashing steal contention.
+  - Pros: Near-zero contention between owner and thieves and strong scaling for modern schedulers.
+  - Cons: Block management and cross-block transitions add bookkeeping.
+  - Scenarios: High-core work-stealing runtimes, scheduler contention tuning.
+
+- [ ] StealHalf
+  - Core Concept: A thief takes roughly half the victim's tasks per steal instead of one, amortizing the cost of contended steals.
+  - Pros: Fewer steal attempts and better load spreading for bursty workloads.
+  - Cons: Larger atomic transfer and trickier ownership split at the steal boundary.
+  - Scenarios: Irregular parallel workloads, steal-frequency reduction experiments.

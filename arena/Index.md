@@ -81,3 +81,51 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Helps make arena lifetime bugs observable during tests.
   - Cons: Adds overhead and cannot catch all unsafe aliasing.
   - Scenarios: Teaching lifetime discipline and validating arena users.
+
+- [ ] BuddyAllocator
+  - Core Concept: The binary buddy system splits power-of-two blocks on allocation and coalesces free buddies on release.
+  - Pros: Fast split/merge, low external fragmentation, and simple coalescing math.
+  - Cons: Internal fragmentation up to 2x and only power-of-two sizes without extra classes.
+  - Scenarios: Page/slab backing allocators, embedded allocators, allocator-design teaching.
+
+- [ ] TLSF
+  - Core Concept: Two-Level Segregated Fit (Masmano 2004) indexes free blocks by size class with two bitmap levels for O(1) bounded allocation.
+  - Pros: Constant-time, low-fragmentation allocation suitable for real-time and latency-bound systems.
+  - Cons: Bitmap and segregated-list bookkeeping, and lower throughput than thread-caching allocators under contention.
+  - Scenarios: HFT/real-time allocators, embedded systems, bounded-latency memory study.
+
+- [ ] SegregatedFreeList
+  - Core Concept: Maintain separate free lists per size class so allocation is an O(1) class lookup plus a pop.
+  - Pros: Fast same-size allocation and the building block under slab, tcmalloc, and jemalloc.
+  - Cons: Per-class lists waste memory across many sizes and need a backing arena for refills.
+  - Scenarios: Slab internals, fixed-size pools, size-class allocator study.
+
+- [ ] TCMallocStyle
+  - Core Concept: Thread-caching malloc keeps a per-thread cache of size-classed objects backed by a central free list and a page heap of spans.
+  - Pros: Lock-free common-path allocation per thread and good multicore scaling.
+  - Cons: Central list and span management add complexity, and Go cannot pin to OS threads, so model per-worker caches instead.
+  - Scenarios: Multicore allocator study, per-worker pools, allocation-contention benchmarks.
+
+- [ ] MimallocStyle
+  - Core Concept: mimalloc (Leijen 2019) shards free lists per page with separate local and atomic thread-free lists plus deferred freeing.
+  - Pros: Excellent locality, low fragmentation, and fast multithreaded free via the sharded lists.
+  - Cons: Page-local free-list sharding is intricate and the full design leans on thread identity Go lacks.
+  - Scenarios: Modern allocator study, free-list sharding, AI-infra memory throughput.
+
+- [ ] JemallocStyle
+  - Core Concept: jemalloc reduces contention with multiple arenas, a per-thread cache, size classes, and decay-based page purging.
+  - Pros: Strong multithreaded scaling and tunable fragmentation/RSS behavior.
+  - Cons: Arena assignment and decay tuning are complex and rely on thread-to-arena mapping.
+  - Scenarios: Server allocator study, fragmentation tuning, arena-vs-thread-cache comparison.
+
+- [ ] GoRuntimeAllocator
+  - Core Concept: Go's allocator layers a per-P mcache, shared mcentral, and global mheap with size classes and a tiny allocator for small objects.
+  - Pros: Explains the allocator the repo actually runs on and where escape analysis and size classes matter.
+  - Cons: Internal and not portably reimplementable, so this is a reference and measurement target, not a from-scratch build.
+  - Scenarios: Understanding Go allocation cost, escape-analysis labs, allocation benchmarking.
+
+- [ ] SyncPoolStyle
+  - Core Concept: A sync.Pool-style cache keeps per-P local free objects plus a victim cache that survives exactly one GC before eviction.
+  - Pros: Lock-free Get/Put fast path and automatic shrinkage under GC pressure.
+  - Cons: Objects can vanish at any GC, so it suits transient reuse, not guaranteed pooling.
+  - Scenarios: Buffer reuse, per-request scratch objects, allocation-rate reduction on hot paths.
