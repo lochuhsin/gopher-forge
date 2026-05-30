@@ -366,7 +366,7 @@ benchmarked, or composed into a recognizable system?
 
 | Package | Phase 2 items | Proof / benchmark / composition target |
 |---|---|---|
-| `memory/` | `FalseSharing`, `ProgressGuarantees`, `LinearizationPoint`, `ABAProblem`, `LitmusTests` | SPSC and Treiber explanation notes; litmus examples; false-sharing benchmark |
+| `memory/` | `FalseSharing`, `ABAProblem` | SPSC and Treiber explanation notes; false-sharing benchmark; tagged-index ABA lab |
 | `syncx/` | `TTASLock`, `BackoffSpinLock`, `FairSemaphore`, `TimeoutSemaphore`, `ContextCond`, `KeyedMutex`, `KeyedSemaphore`, `CyclicBarrier`, `BarrierAction` | spin/ticket/MCS/TTAS benchmark; semaphore fairness/starvation tests; cond lost-wakeup tests; per-key isolation |
 | `park/` | `WaiterQueue`, `CancellationSafeWaiterRemoval`, `TimeoutPark`, `WakerRegistration`, `AtomicWaitNotify` | cancellation-safe wait queues and wakeup-race tests |
 | `queue/` | SPSC/channel/MPSC/MPMC p99 benchmark, `LossyBoundedQueue`, `LMAXDisruptor`, `MulticastRingBuffer`, `LaggingReceiverPolicy` | p50/p95/p99 report; slow-consumer policy matrix; channel allocation comparison |
@@ -399,7 +399,7 @@ Phase 3 builds the high-moat artifacts that map directly to target verticals.
 
 | Package | Phase 3 items | Portfolio target |
 |---|---|---|
-| `memory/` | `AtomicRefcount`, `TaggedVersionedPointers`, `FenceCheatsheet`, Rust ordering comparison | Rust `Arc<T>` and Rust SPSC safety proof |
+| `memory/` | `AtomicRefcount`, `TaggedVersionedPointers`, Rust ordering comparison | Rust `Arc<T>` and Rust SPSC safety proof |
 | `syncx/` | `CombiningTreeBarrier`, `TournamentBarrier`, `DisseminationBarrier`, `Phaser`, `FuturePromise`, `CancellableFuture`, selected `STM` | AI training/NCCL signal, async runtime signal, crypto L1 specialization |
 | `park/` | `FutexWaitWake`, `FutexMutex`, `AtomicWaitNotify`, `QueuedSynchronizer`, `SchedulerHandoff` | sleeping mutex and runtime internals study |
 | `queue/` | `MichaelScottQueue`, `VyukovIntrusiveMPSC`, `SPMCRing`, `DelayQueue`, optional `WaitFreeQueue` study | deep lock-free queue, timer queue, and runtime scheduler stories |
@@ -536,7 +536,7 @@ Because `LockFreeSPSC` is the active slice, do this before `LMAXDisruptor`:
 ```text
 1. memory/SPSC subset:
    AtomicLoadStore, AcquireReleasePairing, PublicationSafety,
-   FalseSharing, LinearizationPoint, ProgressGuarantees.
+   FalseSharing.
 
 2. queue/SPSC completion:
    generic SPSC API, FIFO/full/empty/wraparound tests,
