@@ -63,23 +63,26 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Less conditional than CAS, so callers must reason about all old states.
   - Scenarios: Vyukov intrusive MPSC queue, signal exchange, pointer publication experiments.
 
-- [ ] AcquireReleasePairing
-  - Core Concept: A release write publishes prior writes; an acquire read that observes it establishes happens-before.
-  - Pros: The minimum ordering needed for most queues, stacks, and publication patterns.
-  - Cons: Pairing must be on the right synchronization variable; otherwise the code can look correct but publish stale data.
-  - Scenarios: SPSC queue slots, future completion, OnceCell state, seqlock validation.
+- [x] AcquireReleasePairing
+  - Core Concept: `ReadyFlag[T]` carries a happens-before edge via an `atomic.Bool ready` flag — the writer's release-store on `ready` publishes prior writes to the `data` field, and the reader's acquire-load establishes happens-before when it observes `true`.
+  - Pros: Minimal demo of the acquire/release pattern; wait-free on both sides; one-shot semantics keep the invariant simple.
+  - Cons: One-shot only — concurrent or repeated Publish races on the `data` field even with a CAS guard; reader must choose its own wait strategy (spin / yield / sleep / external notify).
+  - Scenarios: SPSC queue slot ready, one-time config publish, future completion, shutdown flag, OnceCell foundation.
+  - Substrate: `sync/atomic.Bool` over an ordinary T field; linearization point is the successful `CompareAndSwap` in Publish; progress is wait-free; Go atomics are SC, so this pattern is over-synchronized compared with the minimum release/acquire pair in Rust or C++ — the pattern still applies, the strength does not.
 
-- [ ] FalseSharing
-  - Core Concept: Independent hot variables on the same cache line invalidate each other under concurrent writes.
-  - Pros: Makes performance bugs visible without changing logical correctness.
-  - Cons: Padding fixes increase memory footprint and can be overused.
-  - Scenarios: Queue head/tail padding, counters, lock benchmarking, HFT tuning.
+- [~] FalseSharing
+  - Core Concept: `UnpaddedCounters` and `PaddedCounters` are paired demo structs — the unpadded version places two `atomic.Uint64` counters on the same cache line so concurrent writers thrash MESI; the padded version inserts `[CacheLineSize - 8]byte` between and after the counters so each lives on its own line.
+  - Pros: Demonstrates a pure performance effect with no correctness change; gives the repo a reference benchmark target for padding decisions in `queue/`, `syncx/`, and elsewhere.
+  - Cons: Marked `[~]` until the comparative benchmark lands — the implementation is the demo, but the *claim* (padding meaningfully improves throughput on commodity multi-core hardware) requires measured numbers per ROADMAP §11 DoD; padding also costs memory and only helps when multiple hot variables are written concurrently from different cores.
+  - Scenarios: Queue head/tail padding (`SPSCQueue`, `LockFreePaddedMPMC`), `StripedCounter` (LongAdder) motivation, lock contention benchmarks, ThreadPerCore design justification.
+  - Substrate: ordinary Go struct layout + `sync/atomic.Uint64`; `CacheLineSize = 128` chosen as the safe over-pad covering Apple Silicon's 128-byte coherency granule and x86's 64-byte lines.
 
-- [ ] PublicationSafety
-  - Core Concept: Initialize data fully before publishing the pointer or ready flag that readers observe.
-  - Pros: Central invariant behind safe lock-free reads.
-  - Cons: Violations are timing-dependent and often invisible on x86.
-  - Scenarios: Immutable config publish, ring buffer slots, future result delivery.
+- [x] PublicationSafety
+  - Core Concept: `PublishedPointer[T]` carries a happens-before edge via `atomic.Pointer[T]` itself — the writer fully initializes `*T` before Publish, and any reader that observes a non-nil pointer sees the struct fully initialized.
+  - Pros: Multi-publish supported (each Publish swaps the pointer); reader path is one atomic Load with zero contention between readers; no allocation in Publish / Observe themselves.
+  - Cons: Caller must allocate a fresh `*T` per publish and must never mutate a published struct (Go cannot enforce immutability statically); old-pointer reclamation depends on Go GC and is not portable to non-GC languages without hazard pointers / EBR / RCU.
+  - Scenarios: Live config / feature-flag reload, routing-table swap, RCU-style read-mostly snapshots, atomic state-machine transitions; the raw publication pattern underneath `mapx/CopyOnWriteMap` and `rcu/RCUPointer`.
+  - Substrate: `sync/atomic.Pointer[T]`; linearization point is the Store in Publish; progress is wait-free on both sides.
 
 - [ ] DoubleCheckedLocking
   - Core Concept: Fast-path check, slow-path lock, initialize once, and publish with correct ordering.
