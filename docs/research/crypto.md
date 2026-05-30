@@ -467,7 +467,7 @@ Treiber stack (lock-free CAS-based) is a classic interview question at systems s
 
 ---
 
-### `map/` (concurrent hash map)
+### `mapx/` (concurrent hash map)
 
 **Relevance: ★★★★**
 
@@ -673,7 +673,7 @@ The `parallel/` package likely contains fork-join, parallel map-reduce, pipeline
 | `syncx/future` | ★★★ | ★★★ | ★★★ | ★★★ | ★★★ |
 | `queue/` (SPSC/MPSC ring) | ★★★★★ | ★★★★ | ★★★ | ★★★ | ★★★★★ |
 | `stack/` | ★★★ | ★★★ | ★★ | ★★ | ★★★ |
-| `map/` | ★★★★ | ★★★★ | ★★★ | ★★★ | ★★★★ |
+| `mapx/` | ★★★★ | ★★★★ | ★★★ | ★★★ | ★★★★ |
 | `deque/` | ★★ | ★★★ | ★★ | ★★ | ★★ |
 | `memory/` | ★★★ | ★★★★ | ★★ | ★★★ | ★★★ |
 | `hazard/` | ★★ | ★★★★ | ★★ | ★★ | ★★★ |

@@ -5,6 +5,7 @@ PKG       := ./...
 PKG_QUEUE := ./queue/...
 PKG_STACK := ./stack/...
 PKG_SYNCX := ./syncx/...
+PKG_RATELIMIT := ./ratelimit/...
 COMMON    := -benchmem -benchtime=$(BENCHTIME) -run=^$$
 # Per-package bench targets sweep GOMAXPROCS to stress the scheduler.
 # Combined with the in-test contention levels (HighContention = procs*8,
@@ -17,7 +18,7 @@ PPROF_PORT ?= 8080
         install-hooks \
         test test-short test-stress test-chaos \
         bench bench-single bench-multi bench-scale bench-mpmc-queue bench-mpsc-queue bench-spsc-queue bench-spsc-queue-real \
-        bench-queue bench-stack bench-syncx \
+        bench-queue bench-stack bench-syncx bench-ratelimit \
         bench-cpu bench-mem bench-full \
         cpu-prof mem-prof clean
 
@@ -45,6 +46,7 @@ help:
 	@echo "  bench-queue    Run all benchmarks in ./queue/..."
 	@echo "  bench-stack    Run all benchmarks in ./stack/..."
 	@echo "  bench-syncx    Run all benchmarks in ./syncx/..."
+	@echo "  bench-ratelimit  Run all benchmarks in ./ratelimit/..."
 	@echo ""
 	@echo "  bench-cpu      Run all benchmarks + write cpu.out"
 	@echo "  bench-mem      Run all benchmarks + write mem.out"
@@ -108,6 +110,9 @@ bench-stack:
 
 bench-syncx:
 	go test -bench=. $(COMMON) $(CPU_STRESS) $(PKG_SYNCX)
+
+bench-ratelimit:
+	go test -bench=. $(COMMON) $(CPU_STRESS) $(PKG_RATELIMIT)
 
 bench-cpu:
 	go test -bench=. -cpuprofile=cpu.out $(COMMON) $(PKG)

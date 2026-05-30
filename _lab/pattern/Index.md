@@ -155,3 +155,51 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Connects low-level primitives to production resilience.
   - Cons: Policy tuning and observability are as important as code correctness.
   - Scenarios: Backend RPC clients, inference dependency isolation, exchange risk controls.
+
+- [ ] AcceptorConnector
+  - Core Concept: POSA2 pattern (Schmidt) that decouples connection establishment from the service that handles an established connection.
+  - Pros: Separates connection-setup policy from per-connection processing, easing reuse and testing.
+  - Cons: Adds indirection and a handshake state machine that simple servers do not need.
+  - Scenarios: Network servers/clients, gateway connection setup, reconnect logic.
+
+- [ ] ThreadSpecificStorage
+  - Core Concept: Give each worker its own copy of state so hot paths avoid shared-lock contention (the POSA2/TLS pattern).
+  - Pros: Eliminates locking for per-worker data and improves locality.
+  - Cons: Go has no goroutine-local storage, so this needs explicit per-worker handles or sharding by index.
+  - Scenarios: Per-worker buffers, sharded counters, thread-per-core state.
+
+- [ ] Balking
+  - Core Concept: If an object is not in the right state to act, return immediately instead of blocking or queuing.
+  - Pros: Avoids piling up work that cannot proceed and keeps callers responsive.
+  - Cons: Callers must handle the "did nothing" outcome and possibly retry.
+  - Scenarios: One-shot init, single-flight start, already-running guards.
+
+- [ ] GuardedSuspension
+  - Core Concept: Block a call until a precondition holds, using a predicate loop on a condition variable.
+  - Pros: The canonical correct way to wait for state, the basis of MonitorObject and blocking queues.
+  - Cons: Requires a re-check loop under Mesa semantics and careful signal placement.
+  - Scenarios: Bounded buffers, resource availability waits, monitor methods.
+
+- [ ] TwoPhaseTermination
+  - Core Concept: Shut down in two phases: signal intent to stop, then let workers finish, join, and clean up.
+  - Pros: Bounded, orderly shutdown without abandoning in-flight work.
+  - Cons: Workers must poll the stop signal cooperatively, and cleanup ordering must be defined.
+  - Scenarios: Worker-pool shutdown, daemon stop, graceful service drain.
+
+- [ ] MicroBatching
+  - Core Concept: Coalesce many small requests arriving close in time into one batch to amortize per-operation overhead.
+  - Pros: Large throughput and syscall/IO savings, the core of group commit and inference batching.
+  - Cons: Adds latency up to the batch window and needs a max-size and max-delay policy.
+  - Scenarios: DB group commit, GPU inference batching, log/metric flushing.
+
+- [ ] DoubleBuffering
+  - Core Concept: Keep a front buffer for readers and a back buffer for the writer, then atomically swap roles.
+  - Pros: Lock-light snapshot reads while the writer prepares the next version, akin to left-right.
+  - Cons: Doubles memory, and the swap plus reader-drain must be ordered correctly.
+  - Scenarios: Config snapshots, rendering/sim ticks, market-data state publish.
+
+- [ ] GroupCommit
+  - Core Concept: Batch many durable commits or publishes into one fsync or sequence advance to amortize the sync cost.
+  - Pros: Dramatically higher commit throughput with bounded added latency.
+  - Cons: Latency rises to the batch interval and failure handling spans the whole group.
+  - Scenarios: WAL/journal fsync, Disruptor journaling, replication batching.

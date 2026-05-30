@@ -10,7 +10,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Main proof families from the merged TODO: reader announcement with hazard pointers, epoch pinning with EBR, explicit quiescent states with QSBR, and reference ownership with DRC.
 - EBR is the preferred next implementation here because it pairs naturally with linked lock-free queues and exposes stalled-reader memory retention.
 - Recommended build order from the merged TODO: EBR, then QSBR with `rcu/`, then DRC, then interval-based reclamation as a paper-level extension.
-- Dependencies: depends on `memory/`; consumed by `queue/`, `stack/`, `map/`, and `rcu/`.
+- Dependencies: depends on `memory/`; consumed by `queue/`, `stack/`, `mapx/`, and `rcu/`.
 - Career signal: advanced but important; the best interview answer to "what breaks in your lock-free stack?" is ABA plus unsafe reclamation.
 - Scope rule: include reclamation strategies that can be simulated or implemented behind explicit Go APIs; allocator-specific free-list tricks stay in `arena/` or notes.
 
@@ -96,3 +96,33 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Makes subtle reclamation failures reproducible.
   - Cons: Requires unsafe hooks or controlled alloc/free simulation in Go.
   - Scenarios: Validating hazard, EBR, QSBR, and RCU implementations.
+
+- [ ] Hyaline
+  - Core Concept: Hyaline (Nikolaev-Ravindran 2019) reclaims through reference-counted retirement batches threaded onto reader lists, freeing nodes as the last overlapping reader leaves.
+  - Pros: Lock-free, fast, and robust to stalled readers without per-thread reservation arrays.
+  - Cons: Reference-count bookkeeping on retirement is subtle and batch-link ordering must be exact.
+  - Scenarios: High-throughput lock-free structures, modern alternative to EBR/HP, reclamation comparison labs.
+
+- [ ] NeutralizationBasedReclamation
+  - Core Concept: NBR uses OS signals to neutralize, interrupt, and restart readers that might hold a retired node, letting writers reclaim safely.
+  - Pros: Bounds memory even with stalled readers and avoids per-access reader fences.
+  - Cons: Relies on signal delivery and restartable read sections, which Go cannot model portably, so it stays reference/simulation.
+  - Scenarios: Lock-free trees/maps under reader stalls, signal-based reclamation study.
+
+- [ ] VersionBasedReclamation
+  - Core Concept: VBR (Sheffi-Petrank) stamps objects with versions so a reader detects reuse by version mismatch instead of pinning epochs or pointers.
+  - Pros: Avoids reader-side fences on the fast path and tolerates aggressive reuse.
+  - Cons: Requires type-stable memory, version fields, and careful wraparound handling.
+  - Scenarios: Allocation-recycling lock-free structures, low-overhead reader paths, advanced reclamation study.
+
+- [ ] SignalBasedEpochReclamation
+  - Core Concept: Brown's DEBRA+ (2015) fixes EBR's stalled-reader weakness by signaling a slow participant to publish or abandon its epoch.
+  - Pros: Keeps EBR's cheap reader path while bounding memory when one reader is delayed.
+  - Cons: Depends on OS signals and neutralizable readers, so Go can only approximate it with cooperative checkpoints.
+  - Scenarios: EBR robustness labs, stalled-participant detection, reclamation under preemption.
+
+- [ ] Crystalline
+  - Core Concept: Crystalline (Nikolaev-Ravindran 2023) provides wait-free memory reclamation with bounded garbage and fast reads.
+  - Pros: Strongest progress guarantee among practical reclamation schemes while staying fast.
+  - Cons: High implementation complexity and metadata, mostly a frontier comparison point.
+  - Scenarios: Wait-free structure reclamation, research-grade reclamation comparison.

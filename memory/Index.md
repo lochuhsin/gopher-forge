@@ -10,7 +10,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - Release on the publishing side and acquire on the observing side are the recurring pattern behind queues, futures, OnceCell, seqlock validation, RCU, and reclamation.
 - Go exposes a stronger public atomic model than many lower-level systems APIs, so this package should teach the portable ordering model explicitly.
 - Recommended build order from the merged TODO: ordering cheatsheet, Once/OnceCell, publication safety examples, double-checked locking case study, ABA notes, then litmus tests in `_lab/verify`.
-- Dependencies: no upstream dependencies; this package is upstream of `queue/`, `stack/`, `deque/`, `hazard/`, `reclamation/`, `rcu/`, and lock-free `map/`.
+- Dependencies: no upstream dependencies; this package is upstream of `queue/`, `stack/`, `deque/`, `hazard/`, `reclamation/`, `rcu/`, and lock-free `mapx/`.
 - Career signal: highest for low-level systems and HFT-style work because it gives the vocabulary for lock-free correctness.
 - Scope rule: keep this package about portable concepts: atomic operations, happens-before, publication, progress guarantees, ABA, and litmus tests; architecture-specific assembly fences belong only as explanatory notes.
 
@@ -205,3 +205,39 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Turns abstract memory model rules into observable experiments.
   - Cons: Results depend on hardware, compiler, and Go's atomic model.
   - Scenarios: `_lab/verify` integration, x86 vs ARM demonstrations.
+
+- [ ] MemoryConsistencyModels
+  - Core Concept: Compare the ordering guarantees of SC, x86-TSO, SPARC PSO, weak ARM/POWER, and release consistency as a spectrum from strongest to weakest.
+  - Pros: Explains why the same lock-free code is correct on x86 but breaks on ARM, and frames what ordering an algorithm actually needs.
+  - Cons: Go exposes only one point on this spectrum (DRF-SC with sequentially consistent `sync/atomic`), so weaker models can be taught but not directly programmed in portable Go.
+  - Scenarios: ARM64 correctness review, HFT cross-platform deployment, interview reasoning about reordering.
+
+- [ ] CacheCoherenceMESI
+  - Core Concept: Model how MESI/MOESI coherence, store buffers, and invalidation queues create the reorderings that fences and atomics exist to tame.
+  - Pros: Gives a hardware mental model for false sharing, fence cost, and why a store is not instantly visible.
+  - Cons: Coherence is a CPU mechanism, not a Go API, so this stays explanatory; effects are only observable through benchmarks and litmus tests.
+  - Scenarios: False-sharing benchmarks, HFT cache tuning, explaining acquire/release in hardware terms.
+
+- [ ] ConsumeDependencyOrdering
+  - Core Concept: Data-dependency ordering lets a dependent load observe a publisher's writes without a full acquire fence, the model behind Linux `rcu_dereference` and C++ `memory_order_consume`.
+  - Pros: Cheaper than acquire on weakly ordered CPUs because it rides the address dependency the hardware already respects.
+  - Cons: C++ deprecated `consume` as unimplementable and Go has no consume atomic, so Go must use its SC load and document the dependency intent.
+  - Scenarios: RCU pointer publication, read-mostly snapshots, ARM/POWER ordering discussion.
+
+- [ ] LoadLinkedStoreConditional
+  - Core Concept: LL/SC reads a location with a reservation and conditionally stores only if it was untouched since, the ARM/POWER/RISC-V alternative to CAS.
+  - Pros: Naturally immune to ABA because the reservation breaks on any intervening write, not just a value change.
+  - Cons: Go exposes only CAS, not LL/SC, so this is a comparison topic; spurious SC failures and no nesting also constrain it.
+  - Scenarios: ABA discussion, CAS-vs-LL/SC interview answers, weak-memory primitive comparison.
+
+- [ ] DoubleWidthCAS
+  - Core Concept: A double-width CAS (x86 `CMPXCHG16B`) atomically swaps a pointer plus a tag or counter in one operation.
+  - Pros: Enables tagged-pointer ABA defense and pointer-plus-version structures without a separate indirection.
+  - Cons: Go has no public double-width CAS, so portable code must pack a pointer and tag into one word or use indices instead.
+  - Scenarios: Tagged Treiber stacks, versioned freelists, ABA-mitigation labs.
+
+- [ ] OutOfThinAirValues
+  - Core Concept: OOTA values are self-justifying reads that relaxed-atomic causality cycles could in principle invent, a defect the formal memory models work to forbid.
+  - Pros: Sharpens why relaxed atomics need causality constraints and why DRF-SC is a safer contract.
+  - Cons: Cannot occur in Go (SC atomics plus DRF-SC disallow it), so this is a contrast topic against C++ relaxed ordering.
+  - Scenarios: Memory-model theory, justifying Go's stronger atomics, C++ relaxed-ordering caution.

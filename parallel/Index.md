@@ -126,3 +126,33 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Generalizes BFS to graph and dependency-propagation workloads.
   - Cons: Load imbalance and duplicate suppression can dominate.
   - Scenarios: Parallel BFS, graph analytics, scheduler dependency expansion.
+
+- [ ] AllReduceRecursiveHalvingDoubling
+  - Core Concept: Rabenseifner's algorithm does all-reduce as a recursive-halving reduce-scatter followed by a recursive-doubling all-gather.
+  - Pros: Bandwidth- and latency-efficient for power-of-two participant counts, a standard MPI/NCCL approach.
+  - Cons: Non-power-of-two sizes need extra steps and the two phases must be tuned by message size.
+  - Scenarios: Distributed training collectives, gradient all-reduce, NCCL/MPI algorithm study.
+
+- [ ] AllReduceDoubleBinaryTree
+  - Core Concept: Sanders-Speck-Traff overlay two binary trees so each rank is interior in one and a leaf in the other, achieving full bandwidth at logarithmic latency.
+  - Pros: Combines tree latency with near-ring bandwidth, used by NCCL at scale.
+  - Cons: Tree construction and pipelining are more complex than a single tree or ring.
+  - Scenarios: Large-scale training all-reduce, topology-aware collectives, NCCL comparison.
+
+- [ ] ReduceScatterAllGather
+  - Core Concept: Decompose all-reduce into a reduce-scatter, where each rank ends with a reduced slice, followed by an all-gather of those slices.
+  - Pros: The reusable primitive behind ring and halving-doubling all-reduce, clarifying bandwidth cost.
+  - Cons: Requires even chunking and an extra communication phase to reassemble.
+  - Scenarios: Collective decomposition teaching, custom all-reduce, sharded gradient reduction.
+
+- [ ] CilkWorkStealingScheduler
+  - Core Concept: The Cilk scheduler (Blumofe-Leiserson) runs a work-first policy with per-worker deques and randomized stealing, with provable work/span bounds.
+  - Pros: Provably efficient scheduling for fork-join parallelism with good locality.
+  - Cons: Correctness depends on the deque last-item protocol and randomized victim selection.
+  - Scenarios: Fork-join runtimes, divide-and-conquer parallelism, scheduler bound analysis.
+
+- [ ] BSPSuperstep
+  - Core Concept: Bulk-Synchronous Parallel (Valiant) structures computation as supersteps of local compute, communication, then a global barrier.
+  - Pros: Simple cost model and deterministic phase structure for parallel and distributed jobs.
+  - Cons: The barrier serializes on the slowest worker, so stragglers dominate.
+  - Scenarios: Graph processing (Pregel), iterative ML, distributed-algorithm cost modeling.

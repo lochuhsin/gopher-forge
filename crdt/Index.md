@@ -108,3 +108,39 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Connects CRDT merge laws to real synchronization protocols.
   - Cons: Membership, bandwidth, and duplicate suppression are nontrivial.
   - Scenarios: P2P replication, distributed caches, eventually consistent services.
+
+- [ ] BoundedCounterEscrow
+  - Core Concept: An escrow/bounded counter pre-divides decrement rights among replicas so a non-negative invariant holds without coordination on each decrement.
+  - Pros: Enforces limits like stock or quota locally while staying convergent.
+  - Cons: Needs rebalancing of reservations when a replica runs out, and bounds reduce local availability.
+  - Scenarios: Inventory, quotas, rate budgets, exchange position limits.
+
+- [ ] LogootLSEQ
+  - Core Concept: Logoot (Weiss 2009) and LSEQ assign dense, ordered position identifiers between elements so inserts need no central sequence.
+  - Pros: Supports concurrent ordered insertion with convergence and no tombstone for ordering.
+  - Cons: Identifier length can grow with edits, and the allocation strategy strongly affects size.
+  - Scenarios: Collaborative text, ordered lists, sequence-CRDT comparison.
+
+- [ ] YATA
+  - Core Concept: YATA (Yjs) links each element to its origin neighbors and resolves concurrent inserts deterministically, powering the Yjs library.
+  - Pros: Fast, production-proven collaborative editing with low metadata per element.
+  - Cons: Conflict-resolution rules and garbage collection of deleted items are intricate.
+  - Scenarios: Real-time collaborative editors, Yjs-style documents, CRDT sequence study.
+
+- [ ] Fugue
+  - Core Concept: Fugue (Weidner-Kleppmann 2023) is a sequence CRDT that provably avoids the interleaving anomalies of RGA and Logoot.
+  - Pros: Guarantees non-interleaving of concurrent insertions for cleaner merged text.
+  - Cons: Newer and less battle-tested than RGA/YATA in production tooling.
+  - Scenarios: Collaborative editing correctness, interleaving-anomaly study, modern sequence CRDTs.
+
+- [ ] PureOpBasedCRDT
+  - Core Concept: Pure op-based CRDTs (Baquero-Almeida-Shoker 2014) ship only operations over a tagged reliable causal broadcast and keep a partially ordered log.
+  - Pros: Minimal metadata on the wire and a clean separation of delivery from datatype logic.
+  - Cons: Requires exactly-once causal broadcast and PO-log compaction to bound growth.
+  - Scenarios: Op-based set/map design, causal-broadcast integration, bandwidth-sensitive replication.
+
+- [ ] CausalStabilityGC
+  - Core Concept: Collect tombstones and PO-log entries only once an update is causally stable, meaning every replica has observed it.
+  - Pros: Bounds otherwise unbounded metadata growth in op-based and OR-style CRDTs safely.
+  - Cons: Needs membership knowledge and a stability detector, which is hard under churn.
+  - Scenarios: Tombstone reclamation, op-log compaction, long-lived CRDT replicas.

@@ -174,3 +174,51 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Combines ordering with non-blocking progress.
   - Cons: Delete-min and reclamation are difficult.
   - Scenarios: Schedulers, timers, advanced lock-free data-structure study.
+
+- [ ] TwoLockQueue
+  - Core Concept: The Michael-Scott two-lock queue (1996) guards head and tail with separate locks plus a dummy node so one enqueue and one dequeue proceed concurrently.
+  - Pros: Simple, needs only test-and-set, and beats a single-lock queue once producers and consumers both contend.
+  - Cons: Blocking, not lock-free; still serializes all producers against each other and all consumers against each other.
+  - Scenarios: MPMC baseline above MutexMPMC, head/tail lock-splitting lesson, lock-free queue oracle.
+
+- [ ] LCRQ
+  - Core Concept: The Linked Concurrent Ring Queue (Morrison-Afek 2013) is a Michael-Scott list of fixed CRQ ring nodes where threads spread across slots with fetch-and-add and a full ring is closed and replaced.
+  - Pros: Fetch-and-add scales better than contended CAS, making it one of the fastest known MPMC FIFO queues.
+  - Cons: Ring slots need a double-width CAS that Go lacks publicly, and node reclamation is still required.
+  - Scenarios: High-throughput MPMC study, fetch-and-add vs CAS contention, exchange ingest fan-in.
+
+- [ ] ScalableCircularQueue
+  - Core Concept: SCQ and its wait-free successor wCQ (Nikolaev-Scott 2019/2022) build a fetch-and-add circular queue with bounded memory and no double-width CAS.
+  - Pros: SCQ keeps LCRQ-style fetch-and-add scaling; wCQ adds wait-free progress with bounded memory.
+  - Cons: Index and cycle bookkeeping is intricate, and the wait-free path adds helping complexity.
+  - Scenarios: Bounded fetch-and-add ring study, wait-free queue comparison, modern MPMC design.
+
+- [ ] BasketsQueue
+  - Core Concept: The baskets queue (Hoffman-Shalev-Shavit 2007) lets concurrent enqueues that collide form an unordered basket, relaxing order only among truly simultaneous items.
+  - Pros: Cuts tail CAS contention by absorbing colliding enqueues instead of retrying.
+  - Cons: Linearization is subtler and basket nodes still need reclamation.
+  - Scenarios: Contended MPMC enqueue paths, relaxed-order queue study, CAS-contention mitigation.
+
+- [ ] OptimisticFIFOQueue
+  - Core Concept: The optimistic queue (Ladan-Mozes-Shavit 2004) uses a doubly linked list with lazily fixed prev pointers to cut the number of CAS operations per operation.
+  - Pros: Fewer expensive atomics than Michael-Scott on the common path.
+  - Cons: Needs a fix-up pass to repair stale prev pointers and a more delicate correctness argument.
+  - Scenarios: Lock-free queue optimization study, CAS-reduction techniques.
+
+- [ ] RelaxedKFifoQueue
+  - Core Concept: k-FIFO queues and the MultiQueue admit bounded out-of-order delivery to trade strict order for scalability.
+  - Pros: Much higher throughput and lower contention than strict FIFO when approximate order is acceptable.
+  - Cons: Not linearizable to a FIFO; consumers must tolerate bounded reordering.
+  - Scenarios: Schedulers, load balancers, AI-infra task pools where near-FIFO is enough.
+
+- [ ] SegmentedQueue
+  - Core Concept: An unbounded queue built from linked fixed-size segments (as in crossbeam SegQueue) amortizes allocation across many slots per node.
+  - Pros: Fewer allocations and better locality than a node-per-item Michael-Scott queue.
+  - Cons: Segment hand-off and partially drained segments add edge cases.
+  - Scenarios: General-purpose unbounded MPMC, allocation-sensitive pipelines.
+
+- [ ] FlatCombiningQueue
+  - Core Concept: Threads publish enqueue/dequeue requests to a list and one combiner applies the whole batch against a sequential queue (Hendler et al 2010).
+  - Pros: Converts a CAS storm at head/tail into one cache-friendly sequential pass under high contention.
+  - Cons: Reduces parallelism, combiner latency gates throughput, and requests need cancellation cleanup.
+  - Scenarios: Extreme-contention queues, flat-combining vs lock-free comparison.

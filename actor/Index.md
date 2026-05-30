@@ -198,3 +198,39 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Gives resource management a structured place.
   - Cons: Hooks can introduce side effects that complicate restart safety.
   - Scenarios: Opening connections, cleanup, supervision tests.
+
+- [ ] VirtualActor
+  - Core Concept: Virtual actors (Microsoft Orleans grains) are always-addressable identities activated on demand and deactivated when idle, with single-activation guarantees.
+  - Pros: Removes lifecycle management and gives location transparency at massive actor counts.
+  - Cons: Single-activation and placement need a distributed directory, and turn-based reentrancy rules are subtle.
+  - Scenarios: AI-agent runtimes, massive entity systems, cloud actor services.
+
+- [ ] EventSourcedActor
+  - Core Concept: An event-sourced actor (Akka Persistence) persists state-changing events plus periodic snapshots and replays them to recover on restart.
+  - Pros: Durable, auditable state and clean recovery without saving mutable state directly.
+  - Cons: Event-schema evolution and snapshot cadence add design burden, and replay can be slow.
+  - Scenarios: Workflow engines, financial ledgers, durable stateful actors.
+
+- [ ] StashUnstash
+  - Core Concept: An actor stashes messages it cannot handle in the current behavior and unstashes them after a state change.
+  - Pros: Cleanly handles out-of-order protocol messages without dropping them.
+  - Cons: An unbounded stash can grow, and unstash ordering must be defined.
+  - Scenarios: Handshake/init states, protocol actors, selective-receive alternative.
+
+- [ ] ReceiveTimeout
+  - Core Concept: Deliver a timeout message to an actor after its mailbox stays idle for a configured period.
+  - Pros: Enables passivation and idle cleanup without an external timer per actor.
+  - Cons: Timeout resets race with incoming messages and must be defined precisely.
+  - Scenarios: Idle actor passivation, session expiry, virtual-actor deactivation.
+
+- [ ] ClusterSharding
+  - Core Concept: Distribute entity actors across nodes by entity ID with a shard coordinator that rebalances shards on membership change.
+  - Pros: Scales stateful actors horizontally with location-transparent addressing.
+  - Cons: Rebalancing, handoff, and single-owner guarantees require distributed coordination.
+  - Scenarios: Sharded entity services, geo-distributed actors, large stateful systems.
+
+- [ ] ConsistentHashRouter
+  - Core Concept: Route messages to a pool member by consistent hash of a message key so same-key messages keep affinity across membership changes.
+  - Pros: Stable key-to-worker affinity with minimal reshuffling when the pool resizes.
+  - Cons: Hash skew can imbalance load, and affinity breaks during rebalancing windows.
+  - Scenarios: Stateful worker pools, per-key ordering, partitioned actor routing.

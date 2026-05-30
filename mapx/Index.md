@@ -1,4 +1,4 @@
-# map Index
+# mapx Index
 
 > Learning goal: compare concurrent lookup/update strategies, from sharded locks to read-optimized maps and non-blocking hash tables.
 
@@ -90,3 +90,77 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Turns resize from a hidden footgun into an explicit design dimension.
   - Cons: Migration, tombstones, and helping paths are complex.
   - Scenarios: Lock-free hash maps, sharded map growth, split-ordered lists.
+
+- [ ] JavaCHMStyle
+  - Core Concept: Java 8 ConcurrentHashMap CAS-installs the first node in an empty bin, locks per-bin for collisions, and treeifies long chains, with striped resize help.
+  - Pros: Strong read/write scaling without a global lock and graceful handling of hash collisions.
+  - Cons: Per-bin locking, treeification, and cooperative resize make it a large state machine to get right.
+  - Scenarios: FAANG concurrent-map design, bin-locking vs sharding comparison, production hash-map study.
+
+- [ ] CliffClickNonBlockingHashMap
+  - Core Concept: Cliff Click's NBHM is an open-addressed lock-free map whose slots move through a finite-state machine, with resize handled by a copy state machine.
+  - Pros: CAS-only with no locks and scales across many cores on read- and write-heavy mixes.
+  - Cons: The key/value state machine and incremental copy are notoriously subtle and reclamation leans on GC.
+  - Scenarios: Lock-free hash-map study, state-machine concurrency, JVM map internals.
+
+- [ ] ConcurrentCuckoo
+  - Core Concept: libcuckoo (Li-Andersen-Kaminsky 2014) uses cuckoo hashing with fine-grained striped locks and optimistic, lock-free reads.
+  - Pros: High load factor, predictable lookup cost, and strong read scaling.
+  - Cons: Inserts may trigger cuckoo eviction paths and need careful lock ordering to avoid deadlock.
+  - Scenarios: High-density caches, read-heavy lookup tables, open-addressing concurrency study.
+
+- [ ] HopscotchHashing
+  - Core Concept: Hopscotch hashing (Herlihy-Shavit-Tzafrir 2008) keeps each key within a bounded neighborhood of its home bucket, displacing entries to stay close.
+  - Pros: Cache-friendly open addressing with bounded probe distance, good for concurrency.
+  - Cons: Insert displacement can cascade and neighborhood bitmaps add per-bucket metadata.
+  - Scenarios: Cache-conscious hash tables, open-addressing alternatives to chaining.
+
+- [ ] CLHT
+  - Core Concept: The Cache-Line Hash Table (David-Guerraoui-Trigonakis, ASPLOS 2015) sizes each bucket to one cache line so a lookup completes with at most one cache-line transfer, and updates are designed not to block concurrent lookups.
+  - Pros: Minimal cache traffic for lookups, with both lock-based (CLHT-LB) and lock-free (CLHT-LF) resizable variants.
+  - Cons: Cache-line bucket layout limits entries per bucket and complicates resize.
+  - Scenarios: Cache-line-aware design, NUMA hash tables, scalable search-structure study.
+
+- [ ] BwTree
+  - Core Concept: The Bw-Tree (Levandoski-Lomet-Sengupta 2013) is a latch-free ordered index using delta record chains and a CAS-updated indirection mapping table.
+  - Pros: Latch-free ordered map with good cache behavior, used in production storage engines.
+  - Cons: Delta chains need consolidation and epoch reclamation plus the mapping table add complexity.
+  - Scenarios: Database/storage index study, ordered read-mostly maps, latch-free B-tree comparison.
+
+## Cache Eviction Policies
+
+- [ ] CacheEvictionCLOCK
+  - Core Concept: CLOCK (second-chance) approximates LRU with a circular buffer and a reference bit set on access, evicting the first entry whose bit is clear.
+  - Pros: Near-LRU quality with O(1) updates and no per-hit list reordering, so reads stay cheap.
+  - Cons: Only approximates recency and can retain recently touched but cold entries for an extra sweep.
+  - Scenarios: Page caches, low-contention eviction, baseline for CLOCK-Pro and SIEVE.
+
+- [ ] CacheEvictionARC
+  - Core Concept: ARC (Megiddo-Modha 2003) balances a recency list and a frequency list using ghost entries to self-tune the split.
+  - Pros: Scan-resistant and self-adapting without manual tuning, beating plain LRU on many traces.
+  - Cons: Four lists plus ghost bookkeeping, and patent baggage pushed many systems to alternatives.
+  - Scenarios: Storage/database buffer pools, adaptive cache study, eviction benchmark baseline.
+
+- [ ] CacheEvictionLIRS
+  - Core Concept: LIRS ranks entries by inter-reference recency (reuse distance) rather than last-access time to separate hot from cold blocks.
+  - Pros: Strongly scan-resistant and often higher hit ratio than ARC on looping workloads.
+  - Cons: Stack pruning and state maintenance are intricate.
+  - Scenarios: Database/file-system caches, scan-heavy workloads, reuse-distance study.
+
+- [ ] CacheEvictionWTinyLFU
+  - Core Concept: W-TinyLFU (Caffeine, Einziger-Friedman-Manes 2017) gates a small LRU admission window with a frequency sketch so only high-frequency keys enter the main SLRU.
+  - Pros: State-of-the-art hit ratio with tiny metadata via a count-min sketch plus aging.
+  - Cons: Sketch sizing, aging cadence, and window ratio need tuning, more moving parts than LRU.
+  - Scenarios: Application caches (Caffeine), CDN/edge caches, FAANG cache design.
+
+- [ ] CacheEvictionS3FIFO
+  - Core Concept: S3-FIFO (2023) uses a small probationary FIFO, a main FIFO, and a ghost FIFO instead of LRU lists, promoting only reused items.
+  - Pros: Scales without LRU list locking and beats many policies on large production trace corpora.
+  - Cons: Three-queue sizing matters and it is newer with less long-tail production history.
+  - Scenarios: High-throughput key-value caches, lock-light eviction, modern cache comparison.
+
+- [ ] CacheEvictionSIEVE
+  - Core Concept: SIEVE (NSDI 2024) keeps a single FIFO with a visited bit and a moving hand that retains visited entries in place and evicts the first unvisited one.
+  - Pros: Simpler than LRU, near lock-free on hits (just set a bit), with strong hit ratios and scalability.
+  - Cons: Not LRU-equivalent and behavior under adversarial access is still being characterized.
+  - Scenarios: Web/object caches, near-lock-free hot paths, AI-infra block pools.

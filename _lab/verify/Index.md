@@ -9,7 +9,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 - This lab is for proving and falsifying concurrency claims. The output should be tools that test other packages, not application features.
 - A useful checker needs a model, a history format, and at least one deliberately broken implementation it can catch.
 - Recommended build order from the merged TODO: brute-force linearizability checker, property-based runner, runtime deadlock detector, Eraser lockset, litmus runner, happens-before detector, then DPOR.
-- Dependencies: uses `clock/` vector clocks for happens-before, `memory/` for litmus cases, and exercises `queue/`, `stack/`, `map/`, and `syncx/`.
+- Dependencies: uses `clock/` vector clocks for happens-before, `memory/` for litmus cases, and exercises `queue/`, `stack/`, `mapx/`, and `syncx/`.
 - Career signal: high for correctness-focused systems roles because it shows you do not trust intuition alone.
 - Scope rule: every checker should ship with at least one deliberately broken implementation or schedule that it catches.
 
@@ -137,3 +137,51 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Makes async/task races reproducible instead of relying on sleeps.
   - Cons: Requires instrumented primitives and cannot model every runtime behavior.
   - Scenarios: Future/waker tests, actor mailboxes, cancellation races, timeout logic.
+
+- [ ] PorcupineLinearizability
+  - Core Concept: A practical linearizability checker (Go Porcupine) that searches for a valid sequential order using the Wing-Gong algorithm with partitioning.
+  - Pros: Fast enough for real test histories and widely used to validate concurrent data structures.
+  - Cons: Still worst-case exponential, so histories and models must be kept small.
+  - Scenarios: Queue/stack/map linearizability tests, Jepsen-style validation.
+
+- [ ] LincheckStyleChecker
+  - Core Concept: Generate random concurrent scenarios and bounded-model-check them against a sequential specification, in the style of JetBrains Lincheck.
+  - Pros: Finds data-structure bugs automatically without hand-written interleavings.
+  - Cons: Needs a sequential oracle and bounded scenario sizes, and Go lacks Lincheck's JVM instrumentation.
+  - Scenarios: Lock-free structure testing, regression suites, specification-based checking.
+
+- [ ] CHESSPreemptionBounding
+  - Core Concept: CHESS (Musuvathi-Qadeer 2007) systematically enumerates schedules while bounding the number of preemptions.
+  - Pros: Finds most concurrency bugs with few preemptions, taming the schedule explosion.
+  - Cons: Requires controlling the scheduler at synchronization points, which is hard in Go.
+  - Scenarios: Small-primitive bug finding, scheduler-controlled testing, mutex/queue races.
+
+- [ ] OptimalDPOR
+  - Core Concept: Optimal DPOR (Abdulla et al 2014) uses source sets and wakeup trees to explore exactly one interleaving per Mazurkiewicz trace.
+  - Pros: Avoids redundant equivalent schedules, far fewer runs than naive DPOR.
+  - Cons: Bookkeeping for source sets and wakeup trees is intricate.
+  - Scenarios: Stateless model checking, exhaustive small-program exploration, DPOR study.
+
+- [ ] MaximalCausalityReduction
+  - Core Concept: MCR (Huang 2015) explores only maximal causal models of a trace, a stronger reduction than partial-order methods.
+  - Pros: Fewer explored schedules than DPOR for the same coverage.
+  - Cons: Relies on an SMT solver to derive feasible schedules, raising implementation cost.
+  - Scenarios: Advanced schedule exploration, research-grade checking, reduction comparison.
+
+- [ ] TLAPlusSpec
+  - Core Concept: Specify a primitive's state machine in TLA+/PlusCal and model-check invariants and liveness with TLC.
+  - Pros: Catches design-level concurrency bugs before any code exists.
+  - Cons: A separate spec language and tool, kept as companion artifacts rather than runnable Go.
+  - Scenarios: Designing locks/queues/protocols, invariant specification, design-first verification.
+
+- [ ] CoverageGuidedConcurrencyFuzz
+  - Core Concept: Mutate scheduling choices such as Go select-case order, guided by coverage, to drive executions toward unexplored interleavings (GFuzz-style).
+  - Pros: Finds order-dependent bugs that fixed tests and random stress miss.
+  - Cons: Needs instrumentation of scheduling points and a coverage signal to guide mutation.
+  - Scenarios: Channel/select order bugs, message-order races, fuzzing concurrent code.
+
+- [ ] FastTrackRaceDetector
+  - Core Concept: FastTrack (Flanagan-Freund 2009) is the efficient epoch-based vector-clock happens-before algorithm behind modern race detectors.
+  - Pros: Near-constant-time per access in the common case, the lineage of TSan and go -race.
+  - Cons: Still adds memory and time overhead and only flags races on executed paths.
+  - Scenarios: Mini race-detector build, happens-before education, instrumentation study.

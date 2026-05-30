@@ -122,6 +122,78 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: More state-machine complexity than a simple mutex.
   - Scenarios: Interview prep, database latch policy, reader/writer starvation demonstrations.
 
+- [ ] AndersonArrayLock
+  - Core Concept: Anderson's array-based queue lock (1990) gives each waiter its own slot in a circular array to spin on, advancing on release.
+  - Pros: FIFO fairness with each waiter spinning on a distinct cache line, reducing invalidation traffic.
+  - Cons: Uses O(processors) space per lock, unlike the O(1)-per-waiter MCS lock.
+  - Scenarios: Queue-lock lineage, array-vs-list lock comparison, cache-line spinning lessons.
+
+- [ ] AbortableQueueLock
+  - Core Concept: Scott-Scherer (2001) add timeout and cancellation to MCS and CLH locks by splicing a timed-out waiter out of the queue without leaving a dead node.
+  - Pros: Makes fair queue locks usable in services where unbounded waiting is unacceptable.
+  - Cons: Removing a node races with predecessor/successor handoff, the hardest part of the design.
+  - Scenarios: Try/timeout fair locks, cancellation-safe queue locks, service-grade MCS/CLH.
+
+- [ ] MCSGuestLock
+  - Core Concept: MCSg gives occasional callers a context-free TATAS-style path over an MCS lock so they need not supply a queue node.
+  - Pros: Keeps MCS scaling for regular users while letting guests acquire without a qnode.
+  - Cons: Mixing guest and queued acquirers adds a detection and handoff state to the lock word.
+  - Scenarios: Drop-in MCS ergonomics, mixed-caller locks, queue-lock API study.
+
+- [ ] CohortLock
+  - Core Concept: Lock cohorting (Dice-Marathe-Shavit 2012) composes a global lock with per-node locks and hands ownership within a NUMA node before releasing globally.
+  - Pros: Slashes cross-socket cache-line traffic by batching consecutive same-node acquirers.
+  - Cons: Go cannot pin goroutines to NUMA nodes portably, so node identity must be modeled explicitly.
+  - Scenarios: NUMA lock study, socket-locality batching, scalable-lock comparison.
+
+- [ ] CNALock
+  - Core Concept: The compact NUMA-aware lock (Dice-Kogan 2019, now in Linux qspinlock) is an MCS lock that reorders the queue to favor same-node waiters using one extra word.
+  - Pros: NUMA locality of cohort locks at near-MCS space cost.
+  - Cons: Relies on node identity Go lacks portably, so it stays a modeled simulation.
+  - Scenarios: Modern NUMA-lock study, qspinlock internals, locality-vs-fairness tradeoff.
+
+- [ ] HMCSLock
+  - Core Concept: Hierarchical MCS (Chabbi-Mellor-Crummey 2015) nests MCS locks in a tree matching the NUMA/cache hierarchy, acquiring level by level.
+  - Pros: Multi-level locality for deep NUMA topologies beyond a single node boundary.
+  - Cons: Tree-depth tuning and multi-level handoff are complex, and pinning is not portable in Go.
+  - Scenarios: Deep-NUMA lock study, hierarchical contention, HPC lock design.
+
+- [ ] HemlockLock
+  - Core Concept: Hemlock (Dice-Kogan 2021) is a context-free NUMA-aware lock storing state in one word per lock with no per-thread queue node.
+  - Pros: Compact and NUMA-aware without the bring-your-own-node burden of MCS.
+  - Cons: Succession protocol is subtle and still assumes node identity.
+  - Scenarios: Compact NUMA locks, context-free queue-lock study.
+
+- [ ] DekkerLock
+  - Core Concept: Dekker's algorithm is the first software mutual exclusion for two threads using only loads, stores, and a turn variable.
+  - Pros: Shows mutual exclusion is possible without atomic read-modify-write, a foundational result.
+  - Cons: Two-thread only and requires fences on weak memory, so Go's SC atomics are needed for correctness.
+  - Scenarios: Mutual-exclusion history, memory-fence motivation, litmus pairing with `memory/`.
+
+- [ ] PetersonLock
+  - Core Concept: Peterson's algorithm (1981) achieves two-thread mutual exclusion with a flag pair plus a turn variable in a simpler form than Dekker.
+  - Pros: Minimal, elegant, and the canonical teaching example of software mutual exclusion.
+  - Cons: Two-thread only and needs SC ordering, which on weak memory means explicit atomics/fences.
+  - Scenarios: Concurrency fundamentals, fence/litmus demos, software-lock baseline.
+
+- [ ] FilterLock
+  - Core Concept: The filter lock generalizes Peterson to N threads through n-1 waiting levels, each with a victim that yields.
+  - Pros: Software mutual exclusion for many threads without atomic read-modify-write.
+  - Cons: O(n) space and no FIFO fairness, superseded by queue locks in practice.
+  - Scenarios: N-process mutual exclusion, fairness contrast with the bakery algorithm.
+
+- [ ] BakeryLock
+  - Core Concept: Lamport's bakery algorithm (1974) hands each thread an increasing number and serves the lowest, giving FIFO mutual exclusion without read-modify-write.
+  - Pros: Starvation-free FIFO order built from plain reads and writes.
+  - Cons: Numbers grow unboundedly and it needs O(n) scans plus SC ordering to be correct.
+  - Scenarios: Fair software mutual exclusion, classic algorithm study, fence reasoning.
+
+- [ ] PhaseFairRWLock
+  - Core Concept: A phase-fair reader-writer lock (Brandenburg-Anderson) alternates reader and writer phases so each side has bounded worst-case blocking.
+  - Pros: Predictable, bounded blocking for both readers and writers, valuable for real-time analysis.
+  - Cons: More state than reader- or writer-preferring locks and lower peak read throughput.
+  - Scenarios: Real-time RW locks, starvation-bounded latches, RWMutex-variant comparison.
+
 ## Semaphore Family
 
 - [x] ChannelSemaphore
@@ -328,6 +400,18 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Cons: Removing a waiter races with Signal/Broadcast, so the wake ownership rule must be exact.
   - Scenarios: Blocking queues, admission control waits, shutdown-aware monitors.
 
+- [ ] HoareMonitor
+  - Core Concept: Hoare (signal-and-urgent-wait) monitors hand the lock and CPU directly to a signaled waiter, so the awakened thread sees the predicate guaranteed true.
+  - Pros: No predicate re-check loop is needed and wakeup semantics are precise.
+  - Cons: Requires an immediate context switch and an urgent queue, which neither Go nor most runtimes provide.
+  - Scenarios: Monitor-semantics theory, Hoare-vs-Mesa contrast, condition-variable correctness teaching.
+
+- [ ] BrinchHansenMonitor
+  - Core Concept: Brinch-Hansen monitors require that a signal be the last action of a procedure, so the signaler exits immediately and the waiter proceeds.
+  - Pros: Strictest, simplest-to-reason monitor discipline with deterministic handoff.
+  - Cons: Disallows work after signaling, which is too rigid for many real programs.
+  - Scenarios: Monitor-discipline study, signal-placement rules, Mesa/Hoare comparison.
+
 ## Channel Helper Family
 
 - [x] UnorderedChannel
@@ -429,3 +513,15 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Teaches optimistic concurrency at a higher abstraction than locks.
   - Cons: `stm.go` currently only declares the package.
   - Scenarios: Block-STM, OCC, MVCC, and transaction conflict detection.
+
+- [ ] TL2STM
+  - Core Concept: Transactional Locking II (Dice-Shalev-Shavit 2006) commits with a global version clock, a write-set lock-and-validate phase, and read-set validation.
+  - Pros: The canonical word-based STM design with clear commit-time validation.
+  - Cons: Global clock contention and read-set validation cost, with aborts under high conflict.
+  - Scenarios: STM internals, optimistic-concurrency study, OCC/MVCC bridge.
+
+- [ ] BlockSTM
+  - Core Concept: Block-STM (Aptos 2022) executes a pre-ordered block of transactions optimistically in parallel with multi-version state and re-executes on detected dependency conflicts.
+  - Pros: Extracts parallelism from an ordered transaction block without a manual dependency graph.
+  - Cons: Needs multi-version memory and a collaborative scheduler, with wasted work under heavy conflicts.
+  - Scenarios: Crypto/L1 parallel execution, blockchain VM throughput, OCC at scale.

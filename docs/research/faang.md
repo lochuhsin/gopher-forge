@@ -523,7 +523,7 @@ Sub-verticals: **BE** = general backend infra, **PLT** = platform/data-infra, **
 
 ---
 
-### `map/` — Concurrent map
+### `mapx/` — Concurrent map
 
 | FAANG Relevance | ★★★★★ | Required |
 |---|---|---|
@@ -681,7 +681,7 @@ Sub-verticals: **BE** = general backend infra, **PLT** = platform/data-infra, **
 | `syncx/Spin+Ticket+MCS lock` | ★★ | Advanced (not FAANG) | Low-level infra signal only |
 | `syncx/RCU` | ★★ | Advanced (not FAANG) | Cloudflare/Rust/kernel contexts |
 | `syncx/STM` | ★★ | Advanced | MVCC analogy, crypto L1 |
-| `map/` | ★★★★★ | Required | `sync.Map`, `ConcurrentHashMap`, rate limiter counter |
+| `mapx/` | ★★★★★ | Required | `sync.Map`, `ConcurrentHashMap`, rate limiter counter |
 | `queue/` | ★★★★★ | Required | Bounded blocking queue coding question |
 | `ratelimit/` | ★★★★★ | Required | #1 most-tested system design topic |
 | `scope/` | ★★★★★ | Required | `context.Context` in every Go senior interview |
@@ -700,7 +700,7 @@ Sub-verticals: **BE** = general backend infra, **PLT** = platform/data-infra, **
 
 **Most Strategically Valuable Packages for FAANG E5/L5 Application**:
 1. `ratelimit/` — directly maps to #1 system design topic
-2. `map/` + `queue/` — directly maps to canonical coding questions
+2. `mapx/` + `queue/` — directly maps to canonical coding questions
 3. `scope/` — required Go idiom, tested everywhere
 4. `syncx/WaitGroup+channel+semaphore+Once` — required Go/Java primitives
 

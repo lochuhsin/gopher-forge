@@ -117,3 +117,21 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
   - Pros: Explains fairness modes such as Go mutex starvation handoff.
   - Cons: Direct handoff can reduce throughput under light contention.
   - Scenarios: Mutex fairness, semaphore handoff, latency-vs-throughput tuning.
+
+- [ ] PriorityInheritanceFutex
+  - Core Concept: A priority-inheritance futex (Linux FUTEX_LOCK_PI) temporarily boosts the lock holder to the waiter's priority to bound priority inversion.
+  - Pros: Prevents a low-priority holder from stalling high-priority waiters indefinitely.
+  - Cons: Linux-specific, and Go has no thread priorities or PI futex access, so this is a reference model.
+  - Scenarios: Real-time mutex study, priority-inversion explanation, RTOS comparison.
+
+- [ ] AdaptiveSpinThenPark
+  - Core Concept: Spin briefly hoping for a quick release, then park if the lock stays held, the strategy real Go and Java mutexes use.
+  - Pros: Avoids park/wake syscalls for short critical sections while still parking on long waits.
+  - Cons: Spin budget is workload-sensitive and wrong tuning wastes CPU or adds latency.
+  - Scenarios: Mutex fast-path design, spin-vs-park tuning, latency/throughput tradeoff labs.
+
+- [ ] ParkingLotWordLock
+  - Core Concept: Rust parking_lot stores lock state in one byte and keeps wait queues in a global hash table keyed by the lock address, separating the queue from the object.
+  - Pros: Tiny per-lock footprint and a reusable parking mechanism shared across many primitives.
+  - Cons: The global parking-spot hash table and address keying are intricate to implement correctly.
+  - Scenarios: Compact lock design, decoupled wait-queue study, parking_lot comparison.
