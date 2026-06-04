@@ -4,6 +4,8 @@ import (
 	"sync"
 	"sync/atomic"
 	_ "unsafe"
+
+	"forge/park"
 )
 
 //go:linkname runtime_SemacquireMutex sync.runtime_SemacquireMutex
@@ -87,15 +89,91 @@ func (r *RCULock) Lock() {
 func (r *RCULock) Unlock() {
 }
 
+const (
+	unlocked = iota
+	lockedNoWait
+	lockedWait
+)
+
+// MutexLock is a sleeping mutual-exclusion lock built on a three-state atomic
+// word plus a park.Parker for the blocking slow path. It is the futex-style
+// design used by Linux pthread mutexes and Go's own sync.Mutex: a lock-free
+// fast path when uncontended, and real goroutine parking only when a waiter
+// must block.
+//
+// The state word has three values:
+//
+//	unlocked     (0) no one holds the lock
+//	lockedNoWait (1) held, and no goroutine is parked waiting
+//	lockedWait   (2) held, and at least one goroutine is parked
+//
+// The third state is the key optimization: it lets Unlock know whether a
+// waiter exists, so the common uncontended unlock is a single CAS(1->0) with
+// no park/unpark and no wasted wakeup. A two-state lock cannot distinguish
+// "held, someone waiting" from "held, nobody waiting" and would have to signal
+// on every unlock.
+//
+// Fast path: CAS(unlocked -> lockedNoWait). One atomic op, no parking.
+//
+// Slow path: Swap(lockedWait), not CAS. Swap unconditionally marks the lock
+// contended — including the crucial held-but-unmarked transition (1 -> 2) —
+// and returns the prior value. If the prior value was unlocked, the lock was
+// actually free and we just acquired it without parking; otherwise we park.
+// Using CAS(unlocked, lockedWait) here is a deadlock bug: it never performs
+// the 1 -> 2 transition, so a lock held via the fast path is never marked as
+// having a waiter, and Unlock returns via CAS(1->0) without ever unparking the
+// sleeper.
+//
+// The Lock loop re-checks after each wakeup because a freshly woken waiter can
+// be barged by another goroutine acquiring via the fast path; on a lost race
+// it parks again.
+//
+// Pros:
+//   - Uncontended lock/unlock is two atomic CASes: zero syscalls, zero
+//     park/unpark. The common case is cheap.
+//   - Blocked waiters truly park (via the runtime semaphore inside
+//     park.Parker) and consume no CPU, unlike a spinlock.
+//
+// Cons:
+//   - Not fair/FIFO: a woken waiter can be barged by a newly arriving
+//     goroutine on the fast path, so a waiter can be delayed under contention.
+//   - No recursion, no TryLock/timeout, no ownership tracking.
+//   - Depends on park.Parker, which uses go:linkname into the runtime sema.
+//
+// Mental model: the Lock/Unlock API looks like a same-goroutine pair (you
+// lock, you unlock), but the contended path underneath is a cross-goroutine
+// handoff — the blocked locker parks, and a different goroutine's Unlock
+// unparks it.
+//
+// Substrate: sync/atomic state word + park.Parker (runtime-semaphore parking).
 type MutexLock struct {
-	state atomic.Int32
-	sema  uint32
+	state  atomic.Int32
+	parker park.Parker
 }
 
 func (m *MutexLock) Lock() {
+	// fast path
+	if m.state.CompareAndSwap(unlocked, lockedNoWait) {
+		return
+	}
+
+	// slow path
+	for {
+		if m.state.Swap(lockedWait) == unlocked {
+			return
+		}
+		m.parker.Park()
+	}
 }
 
 func (m *MutexLock) Unlock() {
+	if m.state.CompareAndSwap(lockedNoWait, unlocked) {
+		return
+	}
+
+	if m.state.CompareAndSwap(lockedWait, unlocked) {
+		m.parker.Unpark()
+	}
 }
 
 type RWMutexLock struct {
