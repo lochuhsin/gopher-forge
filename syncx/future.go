@@ -65,8 +65,6 @@ func (o *orderedMap) put(t runnable) {
 	o.notEmpty.Signal()
 }
 
-// pollWait blocks until a task is available, returning (task, true).
-// It returns (nil, false) only once the queue has been closed and drained.
 func (o *orderedMap) pollWait() (runnable, bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -87,7 +85,6 @@ func (o *orderedMap) pollWait() (runnable, bool) {
 	return n.t, true
 }
 
-// close marks the queue closed and wakes every parked worker so they can exit.
 func (o *orderedMap) close() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -216,7 +213,6 @@ func (p *Promise[T]) Resolve(fn func() T) {
 		signature: p.signature,
 		doneCh:    make(chan struct{}),
 	}
-
 	getWorkerPool().submit(&t)
 }
 

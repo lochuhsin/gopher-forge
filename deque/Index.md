@@ -7,6 +7,7 @@ Status legend: `[x]` implemented, `[~]` scaffold or partial implementation, `[ ]
 ## Package Notes
 
 - Core invariant: owners and stealers have different rights. Chase-Lev gets speed by letting the owner mutate one end cheaply while stealers contend on the other.
+- Optimizes: a single shared run queue (one mutex/cond — e.g. `syncx`'s worker pool) serializes every worker on one lock, so throughput stops scaling with cores. Work stealing removes that central contention — each worker owns a deque (owner push/pop is the lock-free fast path) and only touches a peer's deque when idle (the steal slow path). Wins: no central-lock contention on the common path, plus cache/affinity locality for subtasks a worker spawns for itself. This is the direct upgrade from the cond-based single-queue pool.
 - The last item race is the key correctness point: owner pop and thief steal can target the same slot.
 - Resizing introduces old-buffer lifetime concerns, which tie this package to reclamation or Go GC assumptions.
 - Recommended build order from the merged TODO: mutex deque baseline, bounded ring deque, Chase-Lev, injector queue, work-stealing pool integration, then resize/ABA extensions.
